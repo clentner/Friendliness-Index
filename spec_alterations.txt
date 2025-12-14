@@ -6,14 +6,52 @@ Spec Alterations
 Problem: Walk graph has disconnected components causing zero-score anomalies.
 Solution: Filter graph to largest connected component before snapping POIs and grid points.
 
-2. Kernel Decay Rate (proposed)
--------------------------------
+2. Kernel Decay Rate (implemented)
+----------------------------------
 Problem: Exponential kernel with lambda=300m decays too slowly, causing high scores
 to "bleed" into areas like the Charles River where walking access is limited.
 
-Current: lambda=300m gives 19% weight at 500m, 3.6% at 1000m
-Proposed: lambda=150m gives 3.6% weight at 500m, 0.1% at 1000m
+Original spec: lambda=300m
+Selected: lambda=120m (after comparing 100-200 range)
 
-This creates sharper contrast between areas with nearby POIs vs distant ones.
+Decay at λ=120m:
+- 50m:  66% weight
+- 100m: 43% weight
+- 200m: 19% weight
+- 500m: 1.5% weight
 
-Alternative: Use power_law kernel with p=2.5 or p=3 for even steeper falloff.
+This creates sharp contrast between POI-dense and sparse areas while maintaining
+smooth gradients in transition zones.
+
+3. Comparison Viewer (implemented)
+----------------------------------
+Addition: Side-by-side comparison viewer for evaluating different kernel parameters.
+
+New CLI: compare.py
+  python compare.py \
+    --pbf file.pbf \
+    --bbox "min_lon,min_lat,max_lon,max_lat" \
+    --configs "name1:exponential:150" "name2:power_law:2:50" \
+    --out output_compare
+
+Features:
+- 2-3 maps side by side with synchronized zoom/pan
+- Shared color scale across all panels for fair comparison
+- Panel headers showing kernel parameters
+- Click any cell to see scores across all configs
+
+4. Visualization: Fill Layer (implemented)
+------------------------------------------
+Problem: MapLibre heatmap layer changes appearance with zoom level.
+Solution: Use polygon grid cells with fill layer instead of point heatmap.
+Each grid cell is a square polygon that maintains consistent color at all zoom levels.
+
+5. Power Law Kernel Formula (implemented)
+-----------------------------------------
+Problem: Original formula K(d) = 1/(d+d0)^p gave tiny values (~0.0001).
+Solution: Normalized formula K(d) = 1/(1 + d/d0)^p
+
+This gives:
+- K(0) = 1.0 (same as exponential)
+- Comparable decay rates when d0 matches lambda
+- Power law tail behavior for p > 1

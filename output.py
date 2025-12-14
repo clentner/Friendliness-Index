@@ -241,6 +241,223 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
 </html>'''
 
 
+def generate_comparison_html(tile_url: str, bbox: BBox, panel_configs: list, grid_spacing: float) -> str:
+    """
+    Generate side-by-side comparison viewer HTML.
+
+    Args:
+        tile_url: Map tile URL template
+        bbox: Bounding box
+        panel_configs: List of dicts with 'name', 'label', 'geojson' keys
+        grid_spacing: Grid spacing in meters
+    """
+    center_lon = (bbox.min_lon + bbox.max_lon) / 2
+    center_lat = (bbox.min_lat + bbox.max_lat) / 2
+    n_panels = len(panel_configs)
+
+    panels_json = json.dumps(panel_configs)
+
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Friendliness Index Comparison</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; padding: 0; font-family: sans-serif; }}
+        #container {{ display: flex; height: 100vh; width: 100vw; }}
+        .panel {{ flex: 1; position: relative; border-right: 2px solid #333; }}
+        .panel:last-child {{ border-right: none; }}
+        .panel-header {{
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 1000;
+            white-space: nowrap;
+        }}
+        .map {{ width: 100%; height: 100%; }}
+        #legend {{
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+        #legend .label {{ font-size: 12px; }}
+        #legend .gradient {{ width: 200px; height: 15px; }}
+        #score-display {{
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="score-display">Click a cell to compare scores</div>
+    <div id="legend">
+        <span class="label">Low</span>
+        <div class="gradient" id="gradient"></div>
+        <span class="label">High</span>
+    </div>
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <script>
+        const PANELS = {panels_json};
+        const TILE_URL = '{tile_url}';
+        const CENTER = [{center_lon}, {center_lat}];
+        const maps = [];
+        let syncing = false;
+
+        document.getElementById('gradient').style.background =
+            'linear-gradient(to right, #313695, #4575b4, #74add1, #abd9e9, #fee090, #fdae61, #f46d43, #a50026)';
+
+        const container = document.getElementById('container');
+
+        PANELS.forEach((panel, idx) => {{
+            const panelDiv = document.createElement('div');
+            panelDiv.className = 'panel';
+            panelDiv.innerHTML = `
+                <div class="panel-header">${{panel.label}}</div>
+                <div class="map" id="map-${{idx}}"></div>
+            `;
+            container.appendChild(panelDiv);
+        }});
+
+        PANELS.forEach((panel, idx) => {{
+            const map = new maplibregl.Map({{
+                container: `map-${{idx}}`,
+                style: {{
+                    version: 8,
+                    sources: {{
+                        osm: {{
+                            type: 'raster',
+                            tiles: [TILE_URL],
+                            tileSize: 256,
+                            attribution: '&copy; OpenStreetMap'
+                        }}
+                    }},
+                    layers: [{{
+                        id: 'osm-tiles',
+                        type: 'raster',
+                        source: 'osm',
+                        minzoom: 0,
+                        maxzoom: 19
+                    }}]
+                }},
+                center: CENTER,
+                zoom: 13
+            }});
+
+            if (idx === 0) {{
+                map.addControl(new maplibregl.NavigationControl());
+            }}
+
+            map.on('load', () => {{
+                fetch(panel.geojson)
+                    .then(r => r.json())
+                    .then(data => {{
+                        map.addSource('scores', {{ type: 'geojson', data: data }});
+
+                        map.addLayer({{
+                            id: 'score-fill',
+                            type: 'fill',
+                            source: 'scores',
+                            paint: {{
+                                'fill-color': [
+                                    'interpolate', ['linear'], ['get', 'score_display'],
+                                    0, '#313695',
+                                    0.15, '#4575b4',
+                                    0.3, '#74add1',
+                                    0.45, '#abd9e9',
+                                    0.55, '#fee090',
+                                    0.7, '#fdae61',
+                                    0.85, '#f46d43',
+                                    1, '#a50026'
+                                ],
+                                'fill-opacity': 0.7
+                            }}
+                        }});
+
+                        map.addLayer({{
+                            id: 'score-outline',
+                            type: 'line',
+                            source: 'scores',
+                            minzoom: 15,
+                            paint: {{
+                                'line-color': '#333',
+                                'line-width': 0.5,
+                                'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 17, 0.3]
+                            }}
+                        }});
+
+                        map.on('click', 'score-fill', (e) => {{
+                            if (e.features.length > 0) {{
+                                const props = e.features[0].properties;
+                                const parts = PANELS.map((p, i) => `${{p.name}}: ${{props.score ? props.score.toFixed(2) : '?'}}`);
+                                document.getElementById('score-display').innerHTML =
+                                    `<b>Score:</b> ${{props.score.toFixed(2)}} | <b>Normalized:</b> ${{(props.score_display * 100).toFixed(1)}}%`;
+                            }}
+                        }});
+
+                        if (idx === 0) {{
+                            const bounds = new maplibregl.LngLatBounds();
+                            data.features.slice(0, 100).forEach(f => {{
+                                f.geometry.coordinates[0].forEach(c => bounds.extend(c));
+                            }});
+                            map.fitBounds(bounds, {{ padding: 30 }});
+                        }}
+                    }});
+            }});
+
+            // Sync maps
+            map.on('move', () => {{
+                if (syncing) return;
+                syncing = true;
+                const center = map.getCenter();
+                const zoom = map.getZoom();
+                const bearing = map.getBearing();
+                const pitch = map.getPitch();
+                maps.forEach((m, i) => {{
+                    if (i !== idx) {{
+                        m.setCenter(center);
+                        m.setZoom(zoom);
+                        m.setBearing(bearing);
+                        m.setPitch(pitch);
+                    }}
+                }});
+                syncing = false;
+            }});
+
+            maps.push(map);
+        }});
+    </script>
+</body>
+</html>'''
+
+
 def write_output(output_dir: Path, index: SpatialIndex, scores: np.ndarray,
                  scores_display: np.ndarray, bbox: BBox, config: Config) -> None:
     """Write all output files."""

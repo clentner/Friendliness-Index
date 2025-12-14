@@ -14,8 +14,11 @@ def exponential_kernel(d: float, lambda_m: float) -> float:
 
 
 def power_law_kernel(d: float, p: float, d0_m: float) -> float:
-    """Power law kernel: K(d) = 1 / (d + d0_m)^p"""
-    return 1.0 / ((d + d0_m) ** p)
+    """Power law kernel: K(d) = 1 / (1 + d/d0_m)^p
+
+    Normalized so K(0) = 1, decays as power law with distance.
+    """
+    return 1.0 / ((1.0 + d / d0_m) ** p)
 
 
 def get_kernel_func(config: KernelConfig) -> Callable[[float], float]:
