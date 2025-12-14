@@ -41,6 +41,10 @@ def main():
     parser.add_argument("--tile-url",
                         default="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                         help="Map tile URL template")
+    parser.add_argument("--parallel", action="store_true", default=False,
+                        help="Use parallel processing (experimental, often slower)")
+    parser.add_argument("--no-parallel", dest="parallel", action="store_false",
+                        help="Disable parallel processing (default)")
 
     args = parser.parse_args()
 
@@ -91,7 +95,7 @@ def main():
 
     print("\n[3/4] Computing scores...")
     start = time.time()
-    scores = score_grid_points(index, kernel_config, args.rmax, parallel=False)
+    scores = score_grid_points(index, kernel_config, args.rmax, parallel=args.parallel)
     print(f"  Done in {time.time() - start:.1f}s")
 
     print(f"\n  Score stats: min={scores.min():.2f}, max={scores.max():.2f}, mean={scores.mean():.2f}")

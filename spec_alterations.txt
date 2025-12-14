@@ -55,3 +55,13 @@ This gives:
 - K(0) = 1.0 (same as exponential)
 - Comparable decay rates when d0 matches lambda
 - Power law tail behavior for p > 1
+
+6. Grid Snapping Optimization (implemented)
+-------------------------------------------
+Problem: Grid point snapping to graph nodes used O(V) linear search per grid point,
+resulting in O(V * n_grid) = O(n²) complexity. For large grids (17,750 points) with
+large graphs (300k nodes), this was 5.3 billion comparisons.
+
+Solution: Use scipy.spatial.cKDTree for O(n log n) snapping.
+
+Measured speedup: 14x faster (106.9s → 7.7s on medium test)

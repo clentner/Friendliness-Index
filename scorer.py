@@ -4,6 +4,7 @@ import networkx as nx
 from typing import Callable
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
+from scipy.spatial import cKDTree
 from config import KernelConfig, KernelType
 from indexer import SpatialIndex
 
@@ -48,24 +49,37 @@ def compute_network_distances(G: nx.Graph, source_node: tuple,
     return {node: dist for node, dist in lengths.items() if node in target_nodes}
 
 
-def score_single_grid_point(args):
-    """Score a single grid point (for multiprocessing)."""
-    grid_idx, grid_node, G_dict, poi_nodes, candidate_indices, snapped_pois, r_max, kernel_params = args
+_worker_G = None
+_worker_snapped_pois = None
+_worker_kernel = None
+_worker_r_max = None
 
-    G = nx.Graph()
+
+def _init_worker(G_dict, snapped_pois, kernel_params, r_max):
+    """Initialize worker process with shared data."""
+    global _worker_G, _worker_snapped_pois, _worker_kernel, _worker_r_max
+
+    _worker_G = nx.Graph()
     for (u, v), w in G_dict.items():
-        G.add_edge(u, v, weight=w)
+        _worker_G.add_edge(u, v, weight=w)
+
+    _worker_snapped_pois = snapped_pois
+    _worker_r_max = r_max
 
     if kernel_params["type"] == "exponential":
-        kernel = lambda d: exponential_kernel(d, kernel_params["lambda_m"])
+        _worker_kernel = lambda d: exponential_kernel(d, kernel_params["lambda_m"])
     else:
-        kernel = lambda d: power_law_kernel(d, kernel_params["p"], kernel_params["d0_m"])
+        _worker_kernel = lambda d: power_law_kernel(d, kernel_params["p"], kernel_params["d0_m"])
 
-    target_nodes = {tuple(snapped_pois[i]) for i in candidate_indices}
 
-    distances = compute_network_distances(G, grid_node, target_nodes, r_max)
+def _score_single_point(args):
+    """Score a single grid point (for multiprocessing)."""
+    grid_idx, grid_node, candidate_indices = args
 
-    score = sum(kernel(d) for d in distances.values())
+    target_nodes = {tuple(_worker_snapped_pois[i]) for i in candidate_indices}
+    distances = compute_network_distances(_worker_G, grid_node, target_nodes, _worker_r_max)
+    score = sum(_worker_kernel(d) for d in distances.values())
+
     return grid_idx, score
 
 
@@ -88,10 +102,10 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
 
     kernel = get_kernel_func(kernel_config)
 
-    snapped_grid = np.array([
-        min(index.G.nodes(), key=lambda n: (n[0] - pt[0])**2 + (n[1] - pt[1])**2)
-        for pt in index.grid_wgs
-    ])
+    graph_nodes = np.array(list(index.G.nodes()))
+    graph_tree = cKDTree(graph_nodes)
+    _, nearest_indices = graph_tree.query(index.grid_wgs)
+    snapped_grid = graph_nodes[nearest_indices]
 
     if parallel:
         G_dict = {(u, v): d["weight"] for u, v, d in index.G.edges(data=True)}
@@ -107,13 +121,15 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
             candidates = index.get_candidate_pois(i, r_max_m)
             if len(candidates) == 0:
                 continue
-            tasks.append((
-                i, tuple(snapped_grid[i]), G_dict, index.snapped_poi_set,
-                candidates, index.snapped_pois, r_max_m, kernel_params
-            ))
+            tasks.append((i, tuple(snapped_grid[i]), candidates))
 
-        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-            for grid_idx, score in executor.map(score_single_grid_point, tasks):
+        n_workers = multiprocessing.cpu_count()
+        with ProcessPoolExecutor(
+            max_workers=n_workers,
+            initializer=_init_worker,
+            initargs=(G_dict, index.snapped_pois, kernel_params, r_max_m)
+        ) as executor:
+            for grid_idx, score in executor.map(_score_single_point, tasks, chunksize=max(1, len(tasks) // (n_workers * 4))):
                 scores[grid_idx] = score
     else:
         for i in range(n_points):
