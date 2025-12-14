@@ -7,7 +7,7 @@ import time
 from config import Config, BBox, KernelConfig, KernelType, GridConfig
 from extractor import extract_data
 from indexer import create_spatial_index
-from scorer import score_grid_points, normalize_scores
+from scorer import score_grid_points, score_grid_points_euclidean, normalize_scores
 from output import write_output
 
 
@@ -45,6 +45,8 @@ def main():
                         help="Use parallel processing (experimental, often slower)")
     parser.add_argument("--no-parallel", dest="parallel", action="store_false",
                         help="Disable parallel processing (default)")
+    parser.add_argument("--distance", choices=["network", "euclidean"], default="network",
+                        help="Distance mode: 'network' (walk graph) or 'euclidean' (straight line)")
 
     args = parser.parse_args()
 
@@ -77,6 +79,7 @@ def main():
     print(f"PBF: {args.pbf}")
     print(f"BBox: {bbox.to_tuple()}")
     print(f"Kernel: {kernel_type.value}, lambda={args.lambda_m}m")
+    print(f"Distance: {args.distance}")
     print(f"R_max: {args.rmax}m")
     print(f"Grid target: {args.ntarget} points")
     print("=" * 60)
@@ -93,9 +96,12 @@ def main():
     index = create_spatial_index(pois, walk_net, bbox, grid_config)
     print(f"  Done in {time.time() - start:.1f}s")
 
-    print("\n[3/4] Computing scores...")
+    print(f"\n[3/4] Computing scores ({args.distance} distance)...")
     start = time.time()
-    scores = score_grid_points(index, kernel_config, args.rmax, parallel=args.parallel)
+    if args.distance == "euclidean":
+        scores = score_grid_points_euclidean(index, kernel_config, args.rmax)
+    else:
+        scores = score_grid_points(index, kernel_config, args.rmax, parallel=args.parallel)
     print(f"  Done in {time.time() - start:.1f}s")
 
     print(f"\n  Score stats: min={scores.min():.2f}, max={scores.max():.2f}, mean={scores.mean():.2f}")

@@ -8,6 +8,10 @@ from scipy.spatial import cKDTree
 from config import KernelConfig, KernelType
 from indexer import SpatialIndex
 
+# Approximate meters per degree at Boston's latitude
+METERS_PER_DEG_LAT = 111000
+METERS_PER_DEG_LON = 82000  # cos(42°) * 111000
+
 
 def exponential_kernel(d: float, lambda_m: float) -> float:
     """Exponential decay kernel: K(d) = exp(-d / lambda_m)"""
@@ -146,6 +150,47 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
             distances = compute_network_distances(index.G, grid_node, target_nodes, r_max_m)
 
             scores[i] = sum(kernel(d) for d in distances.values())
+
+    return scores
+
+
+def score_grid_points_euclidean(index: SpatialIndex, kernel_config: KernelConfig,
+                                 r_max_m: float) -> np.ndarray:
+    """
+    Compute friendliness scores using Euclidean distance (no graph).
+
+    Much faster than network-based scoring - O(n_grid * log(n_poi)).
+    """
+    n_points = len(index.grid_wgs)
+    scores = np.zeros(n_points)
+
+    kernel = get_kernel_func(kernel_config)
+
+    # Get POI coordinates (original, not snapped to graph)
+    poi_coords = np.array([[p.x, p.y] for p in index.pois.geometry])
+
+    # Build k-d tree for POIs (in scaled coordinates for approximate meters)
+    poi_scaled = poi_coords * np.array([METERS_PER_DEG_LON, METERS_PER_DEG_LAT])
+    poi_tree = cKDTree(poi_scaled)
+
+    # Scale grid points
+    grid_scaled = index.grid_wgs * np.array([METERS_PER_DEG_LON, METERS_PER_DEG_LAT])
+
+    # Query all POIs within r_max for each grid point
+    for i in range(n_points):
+        if i % 500 == 0:
+            print(f"  Scoring grid point {i}/{n_points}")
+
+        # Find all POIs within r_max meters
+        nearby_indices = poi_tree.query_ball_point(grid_scaled[i], r_max_m)
+
+        if len(nearby_indices) == 0:
+            continue
+
+        # Compute distances and sum kernel weights
+        nearby_coords = poi_scaled[nearby_indices]
+        distances = np.sqrt(np.sum((nearby_coords - grid_scaled[i])**2, axis=1))
+        scores[i] = sum(kernel(d) for d in distances)
 
     return scores
 
