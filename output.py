@@ -48,6 +48,47 @@ def generate_geojson(index: SpatialIndex, scores: np.ndarray,
     }
 
 
+def generate_poi_geojson(index: SpatialIndex) -> dict:
+    """Generate GeoJSON FeatureCollection for POI markers."""
+    import geopandas as gpd
+
+    features = []
+    tag_cols = ["name", "amenity", "shop", "tourism", "leisure"]
+
+    for idx, row in index.pois.iterrows():
+        geom = row.geometry
+        if geom is None:
+            continue
+
+        props = {}
+        for col in tag_cols:
+            if col in index.pois.columns:
+                val = row.get(col)
+                if val is not None and str(val) != "nan":
+                    props[col] = str(val)
+
+        if not any(k in props for k in ["amenity", "shop", "tourism", "leisure"]):
+            continue
+
+        poi_type = props.get("amenity") or props.get("shop") or props.get("tourism") or props.get("leisure") or "unknown"
+        props["type"] = poi_type
+
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(geom.x), float(geom.y)]
+            },
+            "properties": props
+        }
+        features.append(feature)
+
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+
 def generate_metadata(bbox: BBox, config: Config, n_pois: int, n_grid: int,
                       scores: np.ndarray) -> dict:
     """Generate run metadata."""
@@ -109,6 +150,20 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
         }}
         #info h3 {{ margin: 0 0 8px 0; }}
         #info p {{ margin: 4px 0; }}
+        #controls {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            font-family: sans-serif;
+            font-size: 12px;
+        }}
+        #controls label {{ cursor: pointer; }}
+        .poi-popup {{ font-family: sans-serif; font-size: 12px; }}
+        .poi-popup b {{ color: #333; }}
     </style>
 </head>
 <body>
@@ -117,6 +172,9 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
         <h3>Friendliness Index</h3>
         <p id="hover-info">Click on map for score details</p>
         <p id="stats"></p>
+    </div>
+    <div id="controls">
+        <label><input type="checkbox" id="toggle-pois"> Show POIs</label>
     </div>
     <div id="legend">
         <h4>Friendliness</h4>
@@ -235,6 +293,106 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
                     }});
                     map.fitBounds(bounds, {{ padding: 50 }});
                 }});
+
+            // Load POIs
+            fetch('pois.geojson')
+                .then(response => response.json())
+                .then(poiData => {{
+                    map.addSource('pois', {{
+                        type: 'geojson',
+                        data: poiData
+                    }});
+
+                    // Named POIs - solid purple circles
+                    map.addLayer({{
+                        id: 'poi-named',
+                        type: 'circle',
+                        source: 'pois',
+                        filter: ['has', 'name'],
+                        layout: {{
+                            'visibility': 'none'
+                        }},
+                        paint: {{
+                            'circle-radius': [
+                                'interpolate', ['linear'], ['zoom'],
+                                10, 3,
+                                14, 5,
+                                18, 9
+                            ],
+                            'circle-color': '#9b27b0',
+                            'circle-stroke-color': '#fff',
+                            'circle-stroke-width': 1.5,
+                            'circle-opacity': 0.9
+                        }}
+                    }});
+
+                    // Unnamed POIs - hollow orange circles (smaller)
+                    map.addLayer({{
+                        id: 'poi-unnamed',
+                        type: 'circle',
+                        source: 'pois',
+                        filter: ['!', ['has', 'name']],
+                        layout: {{
+                            'visibility': 'none'
+                        }},
+                        paint: {{
+                            'circle-radius': [
+                                'interpolate', ['linear'], ['zoom'],
+                                10, 2,
+                                14, 3,
+                                18, 6
+                            ],
+                            'circle-color': 'transparent',
+                            'circle-stroke-color': '#ff9800',
+                            'circle-stroke-width': 2,
+                            'circle-opacity': 0.8
+                        }}
+                    }});
+
+                    // POI click popup (for both layers)
+                    const poiClickHandler = (e) => {{
+                        if (e.features.length > 0) {{
+                            const props = e.features[0].properties;
+                            const coords = e.features[0].geometry.coordinates;
+                            let html = '<div class="poi-popup">';
+                            if (props.name) {{
+                                html += `<b>${{props.name}}</b><br>`;
+                            }} else {{
+                                html += `<b style="color:#ff9800">(unnamed)</b><br>`;
+                            }}
+                            html += `<b>Type:</b> ${{props.type}}<br>`;
+                            if (props.amenity) html += `amenity=${{props.amenity}}<br>`;
+                            if (props.shop) html += `shop=${{props.shop}}<br>`;
+                            if (props.tourism) html += `tourism=${{props.tourism}}<br>`;
+                            if (props.leisure) html += `leisure=${{props.leisure}}<br>`;
+                            html += '</div>';
+
+                            new maplibregl.Popup()
+                                .setLngLat(coords)
+                                .setHTML(html)
+                                .addTo(map);
+                        }}
+                    }};
+                    map.on('click', 'poi-named', poiClickHandler);
+                    map.on('click', 'poi-unnamed', poiClickHandler);
+
+                    ['poi-named', 'poi-unnamed'].forEach(layer => {{
+                        map.on('mouseenter', layer, () => {{
+                            map.getCanvas().style.cursor = 'pointer';
+                        }});
+                        map.on('mouseleave', layer, () => {{
+                            map.getCanvas().style.cursor = '';
+                        }});
+                    }});
+
+                    // Toggle POI visibility
+                    document.getElementById('toggle-pois').addEventListener('change', (e) => {{
+                        const vis = e.target.checked ? 'visible' : 'none';
+                        map.setLayoutProperty('poi-named', 'visibility', vis);
+                        map.setLayoutProperty('poi-unnamed', 'visibility', vis);
+                    }});
+                }})
+                .catch(err => console.log('No POI data available'));
         }});
     </script>
 </body>
@@ -467,6 +625,11 @@ def write_output(output_dir: Path, index: SpatialIndex, scores: np.ndarray,
     with open(output_dir / "results.geojson", "w") as f:
         json.dump(geojson, f)
     print(f"Wrote {len(geojson['features'])} features to results.geojson")
+
+    poi_geojson = generate_poi_geojson(index)
+    with open(output_dir / "pois.geojson", "w") as f:
+        json.dump(poi_geojson, f)
+    print(f"Wrote {len(poi_geojson['features'])} POIs to pois.geojson")
 
     metadata = generate_metadata(bbox, config, len(index.pois), len(index.grid_wgs), scores)
     with open(output_dir / "metadata.json", "w") as f:

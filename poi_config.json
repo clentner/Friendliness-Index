@@ -5,12 +5,12 @@
     "amenity": [
       "restaurant", "cafe", "bar", "pub", "fast_food", "food_court",
       "pharmacy", "library", "cinema", "theatre", "arts_centre",
-      "bank", "post_office", "marketplace", "ice_cream",
+      "post_office", "marketplace", "ice_cream",
       "bakery", "deli", "biergarten", "nightclub"
     ],
     "tourism": [
-      "museum", "gallery", "attraction", "viewpoint", "artwork",
-      "information", "zoo", "aquarium"
+      "museum", "gallery", "attraction", "viewpoint",
+      "zoo", "aquarium"
     ],
     "leisure": [
       "park", "playground", "garden", "fitness_centre", "sports_centre",
@@ -20,12 +20,13 @@
   "deny": {
     "shop": [
       "car", "car_repair", "car_parts", "tyres", "fuel",
-      "trade", "wholesale", "industrial"
+      "trade", "wholesale", "industrial",
+      "mobile_phone", "dry_cleaning", "laundry", "vacant"
     ],
     "amenity": [
       "parking", "parking_space", "parking_entrance",
       "fuel", "car_wash", "car_rental", "vehicle_inspection",
-      "prison", "grave_yard", "crematorium"
+      "prison", "grave_yard", "crematorium", "bank"
     ],
     "landuse": ["industrial", "commercial", "residential"],
     "building": ["industrial", "warehouse", "office", "residential"]
