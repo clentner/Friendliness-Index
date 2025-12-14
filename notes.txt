@@ -1,0 +1,2 @@
+- Some POIs are unnamed. Sometimes garbage ("tourism") and sometimes just a restaurant has turned over
+- I filtered out some tourism stuff. This is borderline editorial
