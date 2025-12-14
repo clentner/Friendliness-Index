@@ -1,0 +1,216 @@
+Friendliness Index Map Spec
+Goal
+
+Generate an interactive browser map for a user-specified bounding box that visualizes a “friendliness index” defined as a kernel-weighted density of “friendly” OSM POIs using walk-network distance.
+
+Metric definition
+Inputs
+
+Bounding box B = (min_lon, min_lat, max_lon, max_lat)
+
+Kernel type K ∈ {exponential, power_law}
+
+Kernel params:
+
+Exponential: lambda_m (meters)
+
+Power law: p, d0_m (softening distance)
+
+Max influence radius R_max_m (truncate for performance)
+
+POI allow/deny rules (see below)
+
+Grid resolution policy (see below)
+
+POI set
+
+A “friendly POI” is an OSM element representing a distinct walk-in destination. Use an allowlist-first approach:
+
+Include (examples): shop=*, amenity=restaurant|cafe|bar|fast_food|pharmacy|library|cinema|theatre|…, selected tourism=*, selected leisure=*
+
+Exclude: residential/office/industrial/parking/vehicle-centric
+
+Treat POIs as points:
+
+If OSM is an area (polygon), represent it by a point (centroid or a representative point inside polygon).
+
+No large-area penalty.
+
+The allow/deny lists are a configuration artifact checked into the repo (easy to tune without code changes).
+
+Distance
+
+Use walk-network shortest path distance d_walk(x, poi_i) on a pedestrian graph extracted from OSM.
+
+Score
+
+For each grid point x:
+
+F(x) = sum( i in POIs ) K( d_walk ( x, i)) , only for d_walk ( x, i) ≤ R_max
+
+Kernel options:
+Exponential: K(d) = exp(-d / lambda_m)
+Power law: K(d) = 1 / (d + d0_m)^p
+
+Optionally normalize for display (not for “truth”):
+
+F_display = log1p(F) or quantile scaling for stable color mapping across neighborhoods.
+
+Architecture Components
+
+1. Extractor
+Inputs: offline OSM extract (PBF), bounding box
+Outputs:
+POI table (id, lon, lat, tags)
+Walkable network graph for bbox (+ buffer)
+
+2. Indexer
+Snap POIs to nearest network node (or nearest edge → node)
+Build spatial index of POIs for fast candidate selection (R-tree / k-d tree)
+
+3. Scorer
+Build evaluation grid inside bbox
+For each grid point, compute truncated network distances to candidate POIs and accumulate kernel weights
+Output: grid point features with score
+
+4. Renderer package
+Produce a self-contained browser view:
+Map base layer (tiles)
+Heatmap layer from results (GeoJSON or vector tiles)
+UI controls: kernel type + params + legend
+
+Data flow (single run)
+
+PBF extract → bbox clip (+buffer) → walk graph + POIs → snap/index → grid → scores → GeoJSON/tiles → static web viewer
+
+Libraries
+Python (generation)
+
+pyrosm or osmium: read PBF extracts offline and filter by bbox/tags
+
+osmnx: construct walkable network graph (if you choose its PBF support path) and snap points to nodes
+
+networkx (via osmnx): shortest-path / Dijkstra utilities (or swap to a faster graph lib later)
+
+numpy: grid generation, vectorized math
+
+shapely: bbox geometry, centroids / representative points
+
+scikit-learn or scipy: k-d tree / ball tree for candidate POI prefiltering (straight-line) before network distances
+
+rtree (optional): spatial indexing for POI geometry
+
+pyarrow/parquet (optional): cache intermediate artifacts (POIs, snapped POIs, grid points)
+
+Browser (rendering)
+
+MapLibre GL JS: map + heatmap layer
+
+Simple HTML/JS bundle (no framework required)
+
+Data sources
+
+Offline OSM regional extract (.pbf) (e.g., a state/metro extract)
+
+Map tiles for display (any public tile source you’re allowed to use; keep configurable)
+
+Bounding box handling
+Buffer
+When building the walk graph and POIs, expand bbox by R_max_m converted to degrees approximately (or by projecting bbox to a metric CRS and buffering precisely). This prevents edge artifacts where POIs just outside bbox influence points inside.
+
+Coordinate systems
+Use WGS84 (lat/lon) for storage and web.
+
+For buffering and grid spacing in meters, project bbox to a local metric CRS (e.g., UTM zone) during computation.
+
+Grid resolution policy
+Requirements
+“Tight rectangular grid”
+Grid spacing chosen based on bbox area to keep compute time reasonable
+
+Policy (spec)
+
+Target max grid points N_target (config, e.g., 10k–80k depending on laptop vs beefy box)
+
+Compute bbox area in m² in projected CRS: A
+
+Choose grid spacing s = sqrt(A / N_target) then clamp: s ∈ [s_min, s_max] (e.g., 15m–75m)
+
+Generate grid points on that spacing inside bbox.
+
+Performance strategy (so this doesn’t melt)
+
+Truncate influence with R_max_m (required).
+
+Two-stage candidate filtering:
+
+For each grid point, preselect POIs within straight-line radius R_pre ≈ R_max_m using k-d tree (fast).
+
+Only then compute network distances to those candidates (expensive).
+
+Batch shortest-path:
+
+Prefer “one-to-many truncated Dijkstra” from the grid point limited to R_max_m, then intersect reached nodes with snapped-POI nodes.
+
+Or, if it’s faster in practice: multi-source Dijkstra from POI nodes to fill distances to nearby nodes, then sample at snapped grid nodes. (Pick one; benchmark later.)
+
+Caching:
+
+Cache the extracted walk graph and POIs per region extract.
+
+Cache snapped POIs.
+
+Parallelism:
+
+Score grid points in chunks with multiprocessing (pure CPU).
+
+Output format
+MVP output (simple)
+
+results.geojson: FeatureCollection of Points:
+
+properties: score, score_display
+
+viewer/:
+
+index.html, app.js, style.css
+
+loads GeoJSON and renders heatmap + legend + kernel params displayed (informational)
+
+Upgrade path (if GeoJSON too heavy)
+
+Generate vector tiles for grid points (or raster heat tiles), still render with MapLibre.
+
+Implementation checklist
+Config & CLI
+
+* Define config schema: kernel type/params, R_max_m, POI allow/deny tags, N_target, grid clamps, tile URL.
+* CLI command: generate --pbf PATH --bbox minlon,minlat,maxlon,maxlat --kernel exponential --lambda 300 --rmax 1500 --out OUTDIR
+
+Data extraction
+* Load PBF extract offline
+* Clip to bbox+buffer
+* Extract POIs via tag filters; convert areas to representative points
+* Build/clip walkable graph for bbox+buffer
+
+Indexing
+* Snap POIs to graph nodes
+* Build k-d tree (lon/lat projected to meters) for POI prefiltering
+* Build grid points (projected), then store in WGS84 for output
+
+Scoring
+* For each grid point:
+  * candidate POIs within R_pre via k-d tree
+  * compute truncated network distances to candidate POI nodes
+  * sum kernel weights
+* Apply optional display transform (log/quantile) and store both raw and display scores
+
+Rendering bundle
+* Create static viewer with MapLibre heatmap layer
+* Add legend + hover readout (optional)
+* Ensure everything works from a local static file server (python -m http.server)
+
+Validation
+* Sanity-check maps on known high/low retail areas
+* Unit tests for kernel functions and bbox buffering
+* Reproducibility: record run parameters in metadata.json
