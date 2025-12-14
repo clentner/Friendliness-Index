@@ -1,0 +1,19 @@
+Spec Alterations
+================
+
+1. Graph Connectivity (implemented)
+-----------------------------------
+Problem: Walk graph has disconnected components causing zero-score anomalies.
+Solution: Filter graph to largest connected component before snapping POIs and grid points.
+
+2. Kernel Decay Rate (proposed)
+-------------------------------
+Problem: Exponential kernel with lambda=300m decays too slowly, causing high scores
+to "bleed" into areas like the Charles River where walking access is limited.
+
+Current: lambda=300m gives 19% weight at 500m, 3.6% at 1000m
+Proposed: lambda=150m gives 3.6% weight at 500m, 0.1% at 1000m
+
+This creates sharper contrast between areas with nearby POIs vs distant ones.
+
+Alternative: Use power_law kernel with p=2.5 or p=3 for even steeper falloff.
