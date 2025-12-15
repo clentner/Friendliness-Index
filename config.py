@@ -21,9 +21,7 @@ class KernelConfig:
 
 @dataclass
 class GridConfig:
-    n_target: int = 40000  # target max grid points
-    s_min: float = 15.0  # minimum spacing in meters
-    s_max: float = 75.0  # maximum spacing in meters
+    cell_size_m: float = 50.0  # grid cell width in meters
 
 
 @dataclass
@@ -46,9 +44,7 @@ class Config:
         )
         grid_data = d.get("grid", {})
         grid = GridConfig(
-            n_target=grid_data.get("n_target", 40000),
-            s_min=grid_data.get("s_min", 15.0),
-            s_max=grid_data.get("s_max", 75.0),
+            cell_size_m=grid_data.get("cell_size_m", 50.0),
         )
         return cls(
             kernel=kernel,
@@ -67,9 +63,7 @@ class Config:
                 "d0_m": self.kernel.d0_m,
             },
             "grid": {
-                "n_target": self.grid.n_target,
-                "s_min": self.grid.s_min,
-                "s_max": self.grid.s_max,
+                "cell_size_m": self.grid.cell_size_m,
             },
             "r_max_m": self.r_max_m,
             "tile_url": self.tile_url,

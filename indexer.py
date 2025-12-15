@@ -96,9 +96,7 @@ def generate_grid(bbox: BBox, grid_config: GridConfig) -> tuple[np.ndarray, floa
     min_x, min_y = to_utm.transform(bbox.min_lon, bbox.min_lat)
     max_x, max_y = to_utm.transform(bbox.max_lon, bbox.max_lat)
 
-    area_m2 = (max_x - min_x) * (max_y - min_y)
-    spacing = np.sqrt(area_m2 / grid_config.n_target)
-    spacing = np.clip(spacing, grid_config.s_min, grid_config.s_max)
+    spacing = grid_config.cell_size_m
 
     xs = np.arange(min_x, max_x, spacing)
     ys = np.arange(min_y, max_y, spacing)
@@ -106,7 +104,7 @@ def generate_grid(bbox: BBox, grid_config: GridConfig) -> tuple[np.ndarray, floa
 
     grid_wgs = np.array([to_wgs.transform(x, y) for x, y in grid_utm])
 
-    print(f"Generated {len(grid_wgs)} grid points with {spacing:.1f}m spacing")
+    print(f"Generated {len(grid_wgs)} grid points with {spacing:.1f}m cell size")
     return grid_wgs, spacing
 
 
@@ -186,7 +184,7 @@ if __name__ == "__main__":
         buffer_m=500.0
     )
 
-    grid_config = GridConfig(n_target=5000, s_min=15.0, s_max=75.0)
+    grid_config = GridConfig(cell_size_m=25.0)
     index = create_spatial_index(pois, walk_net, test_bbox, grid_config)
 
     print(f"\nSpatial index created:")

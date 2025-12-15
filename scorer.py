@@ -303,7 +303,7 @@ if __name__ == "__main__":
         buffer_m=800.0
     )
 
-    grid_config = GridConfig(n_target=500, s_min=15.0, s_max=75.0)
+    grid_config = GridConfig(cell_size_m=25.0)
     index = create_spatial_index(pois, walk_net, test_bbox, grid_config)
 
     kernel_config = KernelConfig(

@@ -28,12 +28,8 @@ def main():
                         help="Softening distance for power law kernel (meters)")
     parser.add_argument("--rmax", type=float, default=1500.0,
                         help="Maximum influence radius (meters)")
-    parser.add_argument("--ntarget", type=int, default=10000,
-                        help="Target number of grid points")
-    parser.add_argument("--smin", type=float, default=15.0,
-                        help="Minimum grid spacing (meters)")
-    parser.add_argument("--smax", type=float, default=75.0,
-                        help="Maximum grid spacing (meters)")
+    parser.add_argument("--cell-size", type=float, default=50.0,
+                        help="Grid cell width in meters")
     parser.add_argument("--out", default="output",
                         help="Output directory")
     parser.add_argument("--normalize", choices=["log1p", "quantile"],
@@ -65,9 +61,7 @@ def main():
     )
 
     grid_config = GridConfig(
-        n_target=args.ntarget,
-        s_min=args.smin,
-        s_max=args.smax
+        cell_size_m=args.cell_size
     )
 
     config = Config(
@@ -85,7 +79,7 @@ def main():
     print(f"Kernel: {kernel_type.value}, lambda={args.lambda_m}m")
     print(f"Distance: {args.distance}")
     print(f"R_max: {args.rmax}m")
-    print(f"Grid target: {args.ntarget} points")
+    print(f"Cell size: {args.cell_size}m")
     print("=" * 60)
 
     start_total = time.time()

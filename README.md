@@ -30,10 +30,10 @@ pip install -r requirements.txt
 ```
 python3 generate.py \
   --pbf massachusetts-251213.osm.pbf \                 # Input file e.g. from Geofabrik
-  --bbox="-71.323487,42.184944,-70.921937,42.522139" \ # Bounding box
+  --bbox="-71.323487,42.184944,-70.921937,42.522139" \ # Bounding box (lon,lat,lon,lat)
   --lambda 120 \                                       # Exponential decay parameter, shorter=faster decay
   --rmax 800 \                                         # Max influence radius
-  --ntarget 250000 \                                   # Target # of grid points
+  --cell-size 25 \                                     # Grid cell width in meters
   --out output_large                                   # Output directory
 ```
 
