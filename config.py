@@ -89,7 +89,43 @@ class BBox:
         parts = [float(x.strip()) for x in s.split(",")]
         if len(parts) != 4:
             raise ValueError("BBox must be 4 comma-separated values: min_lon,min_lat,max_lon,max_lat")
-        return cls(*parts)
+        bbox = cls(*parts)
+        bbox.validate()
+        return bbox
+
+    def validate(self) -> None:
+        """Validate bbox coordinates and raise helpful errors for common mistakes."""
+        # Check latitude bounds
+        if not (-90 <= self.min_lat <= 90):
+            raise ValueError(
+                f"Invalid min_lat={self.min_lat}. Latitude must be between -90 and 90. "
+                f"Did you swap lon/lat? Format is: min_lon,min_lat,max_lon,max_lat"
+            )
+        if not (-90 <= self.max_lat <= 90):
+            raise ValueError(
+                f"Invalid max_lat={self.max_lat}. Latitude must be between -90 and 90. "
+                f"Did you swap lon/lat? Format is: min_lon,min_lat,max_lon,max_lat"
+            )
+
+        # Check longitude bounds
+        if not (-180 <= self.min_lon <= 180):
+            raise ValueError(
+                f"Invalid min_lon={self.min_lon}. Longitude must be between -180 and 180."
+            )
+        if not (-180 <= self.max_lon <= 180):
+            raise ValueError(
+                f"Invalid max_lon={self.max_lon}. Longitude must be between -180 and 180."
+            )
+
+        # Check min < max
+        if self.min_lon >= self.max_lon:
+            raise ValueError(
+                f"min_lon ({self.min_lon}) must be less than max_lon ({self.max_lon})"
+            )
+        if self.min_lat >= self.max_lat:
+            raise ValueError(
+                f"min_lat ({self.min_lat}) must be less than max_lat ({self.max_lat})"
+            )
 
     def to_tuple(self) -> tuple:
         return (self.min_lon, self.min_lat, self.max_lon, self.max_lat)
