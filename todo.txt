@@ -1,3 +1,2 @@
 - Try rendering the map as "heat-streets" instead of a grid
-- Try to make the algorithm faster
 - Update OSM source data

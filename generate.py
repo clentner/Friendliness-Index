@@ -47,6 +47,10 @@ def main():
                         help="Disable parallel processing (default)")
     parser.add_argument("--distance", choices=["network", "euclidean"], default="network",
                         help="Distance mode: 'network' (walk graph) or 'euclidean' (straight line)")
+    parser.add_argument("--max-snap", type=float, default=75.0,
+                        help="Max distance (m) from grid point to graph edge; further points score 0")
+    parser.add_argument("--export-graph", action="store_true",
+                        help="Export walk graph as graph.geojson (can be large)")
 
     args = parser.parse_args()
 
@@ -101,7 +105,8 @@ def main():
     if args.distance == "euclidean":
         scores = score_grid_points_euclidean(index, kernel_config, args.rmax)
     else:
-        scores = score_grid_points(index, kernel_config, args.rmax, parallel=args.parallel)
+        scores = score_grid_points(index, kernel_config, args.rmax,
+                                   parallel=args.parallel, max_snap_distance_m=args.max_snap)
     print(f"  Done in {time.time() - start:.1f}s")
 
     print(f"\n  Score stats: min={scores.min():.2f}, max={scores.max():.2f}, mean={scores.mean():.2f}")
@@ -109,7 +114,8 @@ def main():
     print("\n[4/4] Generating output...")
     scores_display = normalize_scores(scores, args.normalize)
     output_dir = Path(args.out)
-    write_output(output_dir, index, scores, scores_display, bbox, config)
+    graph = index.G if args.export_graph else None
+    write_output(output_dir, index, scores, scores_display, bbox, config, graph=graph)
 
     print(f"\nTotal time: {time.time() - start_total:.1f}s")
     print(f"\nTo view the map:")

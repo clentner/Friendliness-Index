@@ -89,6 +89,31 @@ def generate_poi_geojson(index: SpatialIndex) -> dict:
     }
 
 
+def generate_graph_geojson(G) -> dict:
+    """Generate GeoJSON FeatureCollection for walk graph edges."""
+    features = []
+
+    for u, v, data in G.edges(data=True):
+        weight = data.get("weight", 0)
+
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[u[0], u[1]], [v[0], v[1]]]
+            },
+            "properties": {
+                "length_m": round(weight, 1)
+            }
+        }
+        features.append(feature)
+
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+
 def generate_metadata(bbox: BBox, config: Config, n_pois: int, n_grid: int,
                       scores: np.ndarray) -> dict:
     """Generate run metadata."""
@@ -175,6 +200,7 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
     </div>
     <div id="controls">
         <label><input type="checkbox" id="toggle-pois"> Show POIs</label>
+        <label style="margin-left: 15px;"><input type="checkbox" id="toggle-graph"> Show Walk Graph</label>
     </div>
     <div id="legend">
         <h4>Friendliness</h4>
@@ -218,10 +244,10 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
             fetch('results.geojson')
                 .then(response => response.json())
                 .then(data => {{
-                    // Compute score range for display
+                    // Compute score range for display (use reduce to avoid stack overflow on large arrays)
                     const scores = data.features.map(f => f.properties.score);
-                    const minScore = Math.min(...scores);
-                    const maxScore = Math.max(...scores);
+                    const minScore = scores.reduce((a, b) => a < b ? a : b, Infinity);
+                    const maxScore = scores.reduce((a, b) => a > b ? a : b, -Infinity);
                     document.getElementById('stats').innerHTML =
                         `Range: ${{minScore.toFixed(1)}} - ${{maxScore.toFixed(1)}}`;
 
@@ -393,6 +419,38 @@ def generate_viewer_html(tile_url: str, bbox: BBox, grid_spacing: float) -> str:
                     }});
                 }})
                 .catch(err => console.log('No POI data available'));
+
+            // Load walk graph (optional)
+            fetch('graph.geojson')
+                .then(response => response.json())
+                .then(graphData => {{
+                    map.addSource('graph', {{
+                        type: 'geojson',
+                        data: graphData
+                    }});
+
+                    // Graph edges layer - thin gray lines
+                    map.addLayer({{
+                        id: 'graph-edges',
+                        type: 'line',
+                        source: 'graph',
+                        layout: {{
+                            'visibility': 'none'
+                        }},
+                        paint: {{
+                            'line-color': '#666',
+                            'line-width': 1,
+                            'line-opacity': 0.6
+                        }}
+                    }}, 'score-fill');  // Insert below the heatmap
+
+                    // Toggle graph visibility
+                    document.getElementById('toggle-graph').addEventListener('change', (e) => {{
+                        const vis = e.target.checked ? 'visible' : 'none';
+                        map.setLayoutProperty('graph-edges', 'visibility', vis);
+                    }});
+                }})
+                .catch(err => console.log('No graph data available'));
         }});
     </script>
 </body>
@@ -617,8 +675,13 @@ def generate_comparison_html(tile_url: str, bbox: BBox, panel_configs: list, gri
 
 
 def write_output(output_dir: Path, index: SpatialIndex, scores: np.ndarray,
-                 scores_display: np.ndarray, bbox: BBox, config: Config) -> None:
-    """Write all output files."""
+                 scores_display: np.ndarray, bbox: BBox, config: Config,
+                 graph=None) -> None:
+    """Write all output files.
+
+    Args:
+        graph: Optional networkx graph to export as graph.geojson
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     geojson = generate_geojson(index, scores, scores_display)
@@ -630,6 +693,12 @@ def write_output(output_dir: Path, index: SpatialIndex, scores: np.ndarray,
     with open(output_dir / "pois.geojson", "w") as f:
         json.dump(poi_geojson, f)
     print(f"Wrote {len(poi_geojson['features'])} POIs to pois.geojson")
+
+    if graph is not None:
+        graph_geojson = generate_graph_geojson(graph)
+        with open(output_dir / "graph.geojson", "w") as f:
+            json.dump(graph_geojson, f)
+        print(f"Wrote {len(graph_geojson['features'])} edges to graph.geojson")
 
     metadata = generate_metadata(bbox, config, len(index.pois), len(index.grid_wgs), scores)
     with open(output_dir / "metadata.json", "w") as f:

@@ -12,6 +12,49 @@ from indexer import SpatialIndex
 METERS_PER_DEG_LAT = 111000
 METERS_PER_DEG_LON = 82000  # cos(42°) * 111000
 
+# Default max distance from grid point to nearest graph edge
+DEFAULT_MAX_SNAP_DISTANCE_M = 75.0
+
+
+def build_edge_sample_tree(G: "nx.Graph", sample_spacing_m: float = 20.0):
+    """
+    Build a k-d tree from points sampled along all graph edges.
+
+    This allows checking distance to the nearest edge (not just node),
+    which is important for long edges where a grid point might be
+    close to the middle but far from either endpoint.
+
+    Returns (tree, sample_coords) where coords are in WGS84.
+    """
+    samples = []
+
+    for u, v, data in G.edges(data=True):
+        edge_length_m = data.get("weight", 0)
+
+        # Always include endpoints
+        samples.append(u)
+        samples.append(v)
+
+        # Add intermediate samples for long edges
+        if edge_length_m > sample_spacing_m:
+            n_samples = int(edge_length_m / sample_spacing_m)
+            for i in range(1, n_samples):
+                t = i / n_samples
+                # Linear interpolation between nodes
+                sample = (
+                    u[0] + t * (v[0] - u[0]),
+                    u[1] + t * (v[1] - u[1])
+                )
+                samples.append(sample)
+
+    sample_coords = np.array(samples)
+
+    # Scale to approximate meters for distance queries
+    scaled = sample_coords * np.array([METERS_PER_DEG_LON, METERS_PER_DEG_LAT])
+    tree = cKDTree(scaled)
+
+    return tree, sample_coords
+
 
 def exponential_kernel(d: float, lambda_m: float) -> float:
     """Exponential decay kernel: K(d) = exp(-d / lambda_m)"""
@@ -88,7 +131,8 @@ def _score_single_point(args):
 
 
 def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
-                      r_max_m: float, parallel: bool = False) -> np.ndarray:
+                      r_max_m: float, parallel: bool = False,
+                      max_snap_distance_m: float = DEFAULT_MAX_SNAP_DISTANCE_M) -> np.ndarray:
     """
     Compute friendliness scores for all grid points.
 
@@ -97,6 +141,9 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
         kernel_config: Kernel configuration
         r_max_m: Maximum influence radius in meters
         parallel: Whether to use multiprocessing
+        max_snap_distance_m: Maximum distance from grid point to graph edge.
+            Points further than this are considered unreachable (e.g., in water)
+            and get score = 0.
 
     Returns:
         Array of scores for each grid point
@@ -106,6 +153,23 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
 
     kernel = get_kernel_func(kernel_config)
 
+    # Build edge sample tree for distance-to-graph checking
+    print(f"  Building edge sample tree...")
+    edge_tree, _ = build_edge_sample_tree(index.G)
+
+    # Scale grid points to meters for distance queries
+    grid_scaled = index.grid_wgs * np.array([METERS_PER_DEG_LON, METERS_PER_DEG_LAT])
+
+    # Find distance from each grid point to nearest edge
+    edge_distances, _ = edge_tree.query(grid_scaled)
+
+    # Identify reachable grid points (within max_snap_distance_m of an edge)
+    reachable_mask = edge_distances <= max_snap_distance_m
+    n_reachable = reachable_mask.sum()
+    n_unreachable = n_points - n_reachable
+    print(f"  {n_reachable} reachable grid points, {n_unreachable} unreachable (>{max_snap_distance_m}m from graph)")
+
+    # Snap reachable grid points to nearest graph node
     graph_nodes = np.array(list(index.G.nodes()))
     graph_tree = cKDTree(graph_nodes)
     _, nearest_indices = graph_tree.query(index.grid_wgs)
@@ -122,6 +186,8 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
 
         tasks = []
         for i in range(n_points):
+            if not reachable_mask[i]:
+                continue  # Skip unreachable points (e.g., in water)
             candidates = index.get_candidate_pois(i, r_max_m)
             if len(candidates) == 0:
                 continue
@@ -136,10 +202,15 @@ def score_grid_points(index: SpatialIndex, kernel_config: KernelConfig,
             for grid_idx, score in executor.map(_score_single_point, tasks, chunksize=max(1, len(tasks) // (n_workers * 4))):
                 scores[grid_idx] = score
     else:
+        scored_count = 0
         for i in range(n_points):
-            if i % 500 == 0:
-                print(f"  Scoring grid point {i}/{n_points}")
+            if scored_count % 500 == 0:
+                print(f"  Scoring grid point {scored_count}/{n_reachable}")
 
+            if not reachable_mask[i]:
+                continue  # Skip unreachable points (e.g., in water)
+
+            scored_count += 1
             candidates = index.get_candidate_pois(i, r_max_m)
             if len(candidates) == 0:
                 continue

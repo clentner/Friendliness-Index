@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 from pyrosm import OSM
 from shapely.geometry import Point
 from config import BBox
@@ -80,6 +81,15 @@ def extract_data(pbf_path: str, bbox: BBox, buffer_m: float = 1500.0,
     print("Extracting walk network...")
     walk_net = osm.get_network(network_type="walking")
     print(f"Walk network: {len(walk_net)} edges")
+
+    corridors = osm.get_data_by_custom_criteria(
+        custom_filter={"highway": ["corridor"]},
+        filter_type="keep"
+    )
+    if corridors is not None and len(corridors) > 0:
+        print(f"Indoor corridors: {len(corridors)} edges")
+        walk_net = gpd.GeoDataFrame(pd.concat([walk_net, corridors], ignore_index=True))
+        print(f"Combined walk network: {len(walk_net)} edges")
 
     print("Extracting POIs...")
     pois = osm.get_pois()

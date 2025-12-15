@@ -65,3 +65,40 @@ large graphs (300k nodes), this was 5.3 billion comparisons.
 Solution: Use scipy.spatial.cKDTree for O(n log n) snapping.
 
 Measured speedup: 14x faster (106.9s → 7.7s on medium test)
+
+7. Edge-Aware Snapping with Distance Threshold (implemented)
+------------------------------------------------------------
+Problem: Grid points in water (e.g., Charles River) were snapping to distant shore
+nodes, creating artifacts - strange perpendicular lines of high scores bleeding
+across the river. Two adjacent grid points in the river would snap to opposite
+shores.
+
+Solution: Edge-aware snapping with max distance threshold.
+- Sample points along graph edges (every 20m) to detect distance to walkable paths
+- Grid points farther than max_snap_distance from any edge get score = 0
+- This correctly identifies water/inaccessible areas without explicit water polygons
+
+Default: 75m (--max-snap parameter)
+- 50m: Too aggressive, marks some valid areas (parks, plazas) as unreachable
+- 75m: Good balance - river is cold, parks/plazas are scored
+- 100m+: Noticeable bleeding from bridges
+
+The snapping still uses nearest node for Dijkstra, but the edge distance check
+ensures only truly walkable grid points are scored.
+
+8. Indoor Corridor Support (implemented)
+----------------------------------------
+Addition: Walk network extraction now includes OSM indoor corridors.
+
+The standard pyrosm walking network filter doesn't include `highway=corridor`,
+which is used for indoor hallways in buildings with indoor mapping (airports,
+malls, train stations).
+
+extractor.py now:
+1. Extracts standard walking network
+2. Separately queries for highway=corridor features
+3. Merges corridors into walk network if found
+
+This enables proper walk-distance scoring inside large mapped buildings.
+Most buildings don't have indoor mapping yet, but when they do, this will
+automatically include the indoor paths in the walk graph.
