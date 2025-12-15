@@ -11,6 +11,10 @@ Generates a heatmap, e.g. greater Boston area:
 3. Generate a rectangular grid covering the bounding box. Grid points too far from the walk graph (e.g., in water) are excluded.
 4. For each grid point, run truncated Dijkstra to find nearby POIs and compute a weighted sum using kernel decay (exponential by default).
 
+Note: this algorithm does not weight street safety or aesthetics - no bonuses for wide sidewalks,
+slow traffic, speedbumps, bike lanes; no penalties for parking lots. It aims to visualize
+"friendliness" as in "open front doors", not "walkability" which has already been covered by others.
+
 
 ## Usage
 1. Clone repo and install dependencies:
