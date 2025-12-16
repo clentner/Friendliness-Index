@@ -6,7 +6,8 @@
       "restaurant", "cafe", "bar", "pub", "fast_food", "food_court",
       "pharmacy", "library", "cinema", "theatre", "arts_centre",
       "post_office", "marketplace", "ice_cream",
-      "bakery", "deli", "biergarten", "nightclub"
+      "bakery", "deli", "biergarten", "nightclub",
+      "place_of_worship"
     ],
     "tourism": [
       "museum", "gallery", "attraction", "viewpoint",
