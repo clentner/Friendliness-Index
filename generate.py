@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """CLI for generating friendliness index maps."""
 import argparse
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="pyrosm")
 from pathlib import Path
 import time
 

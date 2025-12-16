@@ -23,7 +23,11 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
-1. Download a PBF file containing the OSM data for your area
+1. Download a PBF file containing the OSM data for your area. If using a large regional extract,
+   consider pre-clipping to your area of interest with osmium (`brew install osmium-tool`):
+   ```
+   osmium extract --bbox=-74.02,40.70,-73.90,40.88 new-york.osm.pbf -o manhattan.osm.pbf
+   ```
 1. Pick out a bounding box. Allow a few hundred extra meters on all sides so that edges of the grid can have the same number of neighbors as the center.
 1. Run the script:
 
