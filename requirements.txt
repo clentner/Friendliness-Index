@@ -1,0 +1,8 @@
+geopandas
+networkx
+numpy
+pandas
+pyproj
+pyrosm
+scipy
+shapely
