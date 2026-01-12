@@ -127,3 +127,19 @@ The HTML viewer loads binary data and reconstructs GeoJSON client-side using lin
 interpolation (no proj4js dependency). Cell corners computed from bounds and grid dimensions.
 
 Usage: --output-format binary (default: geojson)
+
+10. Exclude access=no from Walk Graph (implemented)
+---------------------------------------------------
+Problem: Transit-only ways like the Silver Line Tunnel in Boston appear as deep blue
+(unfriendly/unwalkable) in grid output even though there are surface streets above
+with nearby POIs. The tunnel has `access=no` in OSM because pedestrians cannot walk
+through it, but it was being included in the walk graph.
+
+Solution: Filter out edges with `access=no` tag from the walk network after extraction.
+
+This removes:
+- Bus/transit-only tunnels and roads
+- Private roads marked as no public access
+- Other ways explicitly tagged as inaccessible to pedestrians
+
+The surface streets above these tunnels will still be included and scored normally.

@@ -82,6 +82,12 @@ def extract_data(pbf_path: str, bbox: BBox, buffer_m: float = 1500.0,
     walk_net = osm.get_network(network_type="walking")
     print(f"Walk network: {len(walk_net)} edges")
 
+    if "access" in walk_net.columns:
+        access_no_count = (walk_net["access"] == "no").sum()
+        if access_no_count > 0:
+            walk_net = walk_net[walk_net["access"] != "no"].copy()
+            print(f"Removed {access_no_count} edges with access=no")
+
     corridors = osm.get_data_by_custom_criteria(
         custom_filter={"highway": ["corridor"]},
         filter_type="keep"
