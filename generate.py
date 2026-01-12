@@ -7,11 +7,11 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="pyrosm")
 from pathlib import Path
 import time
 
-from config import Config, BBox, KernelConfig, KernelType, GridConfig
+from config import Config, BBox, KernelConfig, KernelType, GridConfig, StreetsConfig
 from extractor import extract_data
-from indexer import create_spatial_index
-from scorer import score_grid_points, score_grid_points_euclidean, normalize_scores
-from output import write_output
+from indexer import create_spatial_index, build_walk_graph, snap_pois_to_edges
+from scorer import score_grid_points, score_grid_points_euclidean, normalize_scores, score_street_segments
+from output import write_output, write_streets_output
 
 
 def main():
@@ -50,6 +50,14 @@ def main():
                         help="Max distance (m) from grid point to graph edge; further points score 0")
     parser.add_argument("--export-graph", action="store_true",
                         help="Export walk graph as graph.geojson (can be large)")
+    parser.add_argument("--mode", choices=["grid", "streets"], default="grid",
+                        help="Visualization mode: 'grid' (2D heatmap) or 'streets' (1D heat-streets)")
+    parser.add_argument("--intersection-penalty", type=float, default=50.0,
+                        help="Extra distance (m) added when crossing intersections (streets mode)")
+    parser.add_argument("--segment-length", type=float, default=10.0,
+                        help="Target segment length (m) for street visualization")
+    parser.add_argument("--output-format", choices=["geojson", "binary"], default="geojson",
+                        help="Output format: 'geojson' (standard) or 'binary' (compact)")
 
     args = parser.parse_args()
 
@@ -67,9 +75,15 @@ def main():
         cell_size_m=args.cell_size
     )
 
+    streets_config = StreetsConfig(
+        intersection_penalty_m=args.intersection_penalty,
+        segment_length_m=args.segment_length
+    )
+
     config = Config(
         kernel=kernel_config,
         grid=grid_config,
+        streets=streets_config,
         r_max_m=args.rmax,
         tile_url=args.tile_url
     )
@@ -79,10 +93,16 @@ def main():
     print("=" * 60)
     print(f"PBF: {args.pbf}")
     print(f"BBox: {bbox.to_tuple()}")
+    print(f"Mode: {args.mode}")
     print(f"Kernel: {kernel_type.value}, lambda={args.lambda_m}m")
-    print(f"Distance: {args.distance}")
+    if args.mode == "grid":
+        print(f"Distance: {args.distance}")
+        print(f"Cell size: {args.cell_size}m")
+    else:
+        print(f"Intersection penalty: {args.intersection_penalty}m")
+        print(f"Segment length: {args.segment_length}m")
     print(f"R_max: {args.rmax}m")
-    print(f"Cell size: {args.cell_size}m")
+    print(f"Output format: {args.output_format}")
     print("=" * 60)
 
     start_total = time.time()
@@ -92,27 +112,55 @@ def main():
     pois, walk_net = extract_data(args.pbf, bbox, buffer_m=args.rmax)
     print(f"  Done in {time.time() - start:.1f}s")
 
-    print("\n[2/4] Building spatial index...")
-    start = time.time()
-    index = create_spatial_index(pois, walk_net, bbox, grid_config)
-    print(f"  Done in {time.time() - start:.1f}s")
+    if args.mode == "streets":
+        print("\n[2/4] Building walk graph...")
+        start = time.time()
+        G = build_walk_graph(walk_net)
+        print(f"  Done in {time.time() - start:.1f}s")
 
-    print(f"\n[3/4] Computing scores ({args.distance} distance)...")
-    start = time.time()
-    if args.distance == "euclidean":
-        scores = score_grid_points_euclidean(index, kernel_config, args.rmax)
+        print("\n[3/4] Snapping POIs to edges and computing scores...")
+        start = time.time()
+        edge_snapped_pois = snap_pois_to_edges(pois, G, bbox)
+        print(f"  Snapped {len(edge_snapped_pois)} POIs to edges")
+
+        segment_scores = score_street_segments(
+            G, edge_snapped_pois, kernel_config, args.rmax,
+            args.intersection_penalty, args.segment_length
+        )
+
+        n_segments = sum(len(segs) for segs in segment_scores.values())
+        n_with_score = sum(1 for segs in segment_scores.values() for s in segs if s["score"] > 0)
+        print(f"  {n_segments} segments, {n_with_score} with score > 0")
+        print(f"  Done in {time.time() - start:.1f}s")
+
+        print("\n[4/4] Generating output...")
+        output_dir = Path(args.out)
+        write_streets_output(output_dir, segment_scores, pois, bbox, config,
+                             output_format=args.output_format)
+
     else:
-        scores = score_grid_points(index, kernel_config, args.rmax,
-                                   parallel=args.parallel, max_snap_distance_m=args.max_snap)
-    print(f"  Done in {time.time() - start:.1f}s")
+        print("\n[2/4] Building spatial index...")
+        start = time.time()
+        index = create_spatial_index(pois, walk_net, bbox, grid_config)
+        print(f"  Done in {time.time() - start:.1f}s")
 
-    print(f"\n  Score stats: min={scores.min():.2f}, max={scores.max():.2f}, mean={scores.mean():.2f}")
+        print(f"\n[3/4] Computing scores ({args.distance} distance)...")
+        start = time.time()
+        if args.distance == "euclidean":
+            scores = score_grid_points_euclidean(index, kernel_config, args.rmax)
+        else:
+            scores = score_grid_points(index, kernel_config, args.rmax,
+                                       parallel=args.parallel, max_snap_distance_m=args.max_snap)
+        print(f"  Done in {time.time() - start:.1f}s")
 
-    print("\n[4/4] Generating output...")
-    scores_display = normalize_scores(scores, args.normalize)
-    output_dir = Path(args.out)
-    graph = index.G if args.export_graph else None
-    write_output(output_dir, index, scores, scores_display, bbox, config, graph=graph)
+        print(f"\n  Score stats: min={scores.min():.2f}, max={scores.max():.2f}, mean={scores.mean():.2f}")
+
+        print("\n[4/4] Generating output...")
+        scores_display = normalize_scores(scores, args.normalize)
+        output_dir = Path(args.out)
+        graph = index.G if args.export_graph else None
+        write_output(output_dir, index, scores, scores_display, bbox, config, graph=graph,
+                     output_format=args.output_format)
 
     print(f"\nTotal time: {time.time() - start_total:.1f}s")
     print(f"\nTo view the map:")

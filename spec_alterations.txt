@@ -102,3 +102,28 @@ extractor.py now:
 This enables proper walk-distance scoring inside large mapped buildings.
 Most buildings don't have indoor mapping yet, but when they do, this will
 automatically include the indoor paths in the walk graph.
+
+9. Binary Output Format (implemented)
+-------------------------------------
+Problem: GeoJSON output files exceed 100MB for large grids, unsuitable for web serving.
+Each grid cell stored as full GeoJSON Polygon feature with 5 coordinate pairs (~352 bytes/cell).
+For 400k cells: ~136 MB.
+
+Solution: Custom binary format with client-side polygon reconstruction.
+
+Grid mode output:
+- grid.json: Metadata (~500 bytes) with bounds, dimensions, UTM zone
+- scores.bin: Raw Float32 array of scores in row-major order
+
+Streets mode output:
+- streets.json: Metadata with bounds and segment count
+- segments.bin: Packed Float32 array (start_lon, start_lat, end_lon, end_lat, score per segment)
+
+Size reduction:
+- 272 cells: 1.5 KB binary vs 95.6 KB GeoJSON (63x smaller)
+- 139,784 cells: 547 KB binary vs ~49 MB GeoJSON (90x smaller)
+
+The HTML viewer loads binary data and reconstructs GeoJSON client-side using linear
+interpolation (no proj4js dependency). Cell corners computed from bounds and grid dimensions.
+
+Usage: --output-format binary (default: geojson)

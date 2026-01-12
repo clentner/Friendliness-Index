@@ -291,6 +291,146 @@ def normalize_scores(scores: np.ndarray, method: str = "log1p") -> np.ndarray:
     return normalized
 
 
+def score_street_segments(G: nx.Graph, edge_snapped_pois: list,
+                          kernel_config: KernelConfig, r_max_m: float,
+                          intersection_penalty_m: float,
+                          segment_length_m: float) -> dict:
+    """
+    Compute scores for street segments using 1D decay from POIs.
+
+    Args:
+        G: Walk graph
+        edge_snapped_pois: List of dicts from snap_pois_to_edges()
+        kernel_config: Kernel configuration
+        r_max_m: Maximum influence radius
+        intersection_penalty_m: Extra "distance" added when crossing intersections
+        segment_length_m: Target segment length for visualization
+
+    Returns:
+        Dict mapping edge tuple to list of segment dicts:
+        {
+            (node_u, node_v): [
+                {"start": (lon, lat), "end": (lon, lat), "score": float},
+                ...
+            ]
+        }
+    """
+    import heapq
+    from indexer import segment_edge, identify_intersections
+
+    kernel = get_kernel_func(kernel_config)
+    intersections = identify_intersections(G)
+
+    edge_segments = {}
+    for u, v, data in G.edges(data=True):
+        edge_key = (u, v)
+        edge_length = data.get("weight", 0)
+        segments = segment_edge(u, v, edge_length, segment_length_m)
+        for seg in segments:
+            seg["score"] = 0.0
+        edge_segments[edge_key] = segments
+        edge_segments[(v, u)] = segments
+
+    for poi_data in edge_snapped_pois:
+        edge = poi_data["edge"]
+        snap_point = poi_data["snap_point"]
+        dist_along = poi_data["distance_along_edge"]
+        edge_length = poi_data["edge_length"]
+
+        visited_edges = set()
+        pq = []
+
+        u, v = edge
+        heapq.heappush(pq, (0.0, edge, dist_along, "forward"))
+        heapq.heappush(pq, (0.0, edge, dist_along, "backward"))
+
+        while pq:
+            eff_dist, curr_edge, pos_on_edge, direction = heapq.heappop(pq)
+
+            if eff_dist > r_max_m:
+                continue
+
+            edge_key = curr_edge
+            if edge_key not in edge_segments:
+                edge_key = (curr_edge[1], curr_edge[0])
+            if edge_key not in edge_segments:
+                continue
+
+            visit_key = (curr_edge, direction)
+            if visit_key in visited_edges:
+                continue
+            visited_edges.add(visit_key)
+
+            segments = edge_segments[edge_key]
+            curr_edge_data = G.get_edge_data(curr_edge[0], curr_edge[1])
+            curr_edge_length = curr_edge_data.get("weight", 0) if curr_edge_data else 0
+
+            for seg in segments:
+                if direction == "forward":
+                    if seg["start_dist"] >= pos_on_edge:
+                        seg_center_dist = (seg["start_dist"] + seg["end_dist"]) / 2
+                        dist_to_seg = eff_dist + (seg_center_dist - pos_on_edge)
+                    else:
+                        continue
+                else:
+                    if seg["end_dist"] <= pos_on_edge:
+                        seg_center_dist = (seg["start_dist"] + seg["end_dist"]) / 2
+                        dist_to_seg = eff_dist + (pos_on_edge - seg_center_dist)
+                    else:
+                        continue
+
+                if dist_to_seg <= r_max_m:
+                    seg["score"] += kernel(dist_to_seg)
+
+            if direction == "forward":
+                end_node = curr_edge[1]
+                dist_to_end = curr_edge_length - pos_on_edge
+                new_eff_dist = eff_dist + dist_to_end
+            else:
+                end_node = curr_edge[0]
+                dist_to_end = pos_on_edge
+                new_eff_dist = eff_dist + dist_to_end
+
+            if end_node in intersections:
+                new_eff_dist += intersection_penalty_m
+
+            if new_eff_dist > r_max_m:
+                continue
+
+            for neighbor in G.neighbors(end_node):
+                if neighbor == curr_edge[0] or neighbor == curr_edge[1]:
+                    continue
+
+                next_edge = (end_node, neighbor)
+                next_edge_data = G.get_edge_data(end_node, neighbor)
+                if not next_edge_data:
+                    continue
+
+                heapq.heappush(pq, (new_eff_dist, next_edge, 0.0, "forward"))
+
+    result = {}
+    seen_edges = set()
+    for u, v, data in G.edges(data=True):
+        edge_key = (u, v)
+        if edge_key in seen_edges or (v, u) in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+
+        if edge_key in edge_segments:
+            segments = edge_segments[edge_key]
+        elif (v, u) in edge_segments:
+            segments = edge_segments[(v, u)]
+        else:
+            continue
+
+        result[edge_key] = [
+            {"start": s["start"], "end": s["end"], "score": s["score"]}
+            for s in segments
+        ]
+
+    return result
+
+
 if __name__ == "__main__":
     from config import BBox, GridConfig, KernelConfig, KernelType
     from extractor import extract_data

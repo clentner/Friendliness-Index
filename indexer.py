@@ -78,13 +78,15 @@ def snap_points_to_graph(points: gpd.GeoDataFrame, G: nx.Graph) -> np.ndarray:
     return nodes[indices]
 
 
-def generate_grid(bbox: BBox, grid_config: GridConfig) -> tuple[np.ndarray, float]:
+def generate_grid(bbox: BBox, grid_config: GridConfig) -> tuple[np.ndarray, float, int, int]:
     """
     Generate a grid of points inside the bounding box.
 
     Returns:
-        Tuple of (grid_points_wgs84, spacing_m)
+        Tuple of (grid_points_wgs84, spacing_m, cols, rows)
         grid_points_wgs84: (N, 2) array of (lon, lat) points
+        cols: number of columns (x dimension)
+        rows: number of rows (y dimension)
     """
     center_lat = (bbox.min_lat + bbox.max_lat) / 2
     center_lon = (bbox.min_lon + bbox.max_lon) / 2
@@ -100,12 +102,14 @@ def generate_grid(bbox: BBox, grid_config: GridConfig) -> tuple[np.ndarray, floa
 
     xs = np.arange(min_x, max_x, spacing)
     ys = np.arange(min_y, max_y, spacing)
+    cols = len(xs)
+    rows = len(ys)
     grid_utm = np.array([(x, y) for y in ys for x in xs])
 
     grid_wgs = np.array([to_wgs.transform(x, y) for x, y in grid_utm])
 
-    print(f"Generated {len(grid_wgs)} grid points with {spacing:.1f}m cell size")
-    return grid_wgs, spacing
+    print(f"Generated {len(grid_wgs)} grid points ({cols}x{rows}) with {spacing:.1f}m cell size")
+    return grid_wgs, spacing, cols, rows
 
 
 def build_poi_kdtree(snapped_pois: np.ndarray, bbox: BBox) -> tuple[cKDTree, np.ndarray]:
@@ -131,13 +135,16 @@ class SpatialIndex:
     """Container for all spatial indices needed for scoring."""
 
     def __init__(self, G: nx.Graph, pois: gpd.GeoDataFrame, snapped_pois: np.ndarray,
-                 grid_wgs: np.ndarray, grid_spacing: float, bbox: BBox):
+                 grid_wgs: np.ndarray, grid_spacing: float, bbox: BBox,
+                 grid_cols: int = 0, grid_rows: int = 0):
         self.G = G
         self.pois = pois
         self.snapped_pois = snapped_pois
         self.grid_wgs = grid_wgs
         self.grid_spacing = grid_spacing
         self.bbox = bbox
+        self.grid_cols = grid_cols
+        self.grid_rows = grid_rows
 
         center_lat = (bbox.min_lat + bbox.max_lat) / 2
         center_lon = (bbox.min_lon + bbox.max_lon) / 2
@@ -168,9 +175,121 @@ def create_spatial_index(pois: gpd.GeoDataFrame, walk_net: gpd.GeoDataFrame,
     print(f"Snapped {len(snapped_pois)} POIs")
 
     print("Generating grid...")
-    grid_wgs, spacing = generate_grid(bbox, grid_config)
+    grid_wgs, spacing, cols, rows = generate_grid(bbox, grid_config)
 
-    return SpatialIndex(G, pois, snapped_pois, grid_wgs, spacing, bbox)
+    return SpatialIndex(G, pois, snapped_pois, grid_wgs, spacing, bbox, cols, rows)
+
+
+def snap_pois_to_edges(pois: gpd.GeoDataFrame, G: nx.Graph, bbox: BBox) -> list:
+    """
+    Snap POIs to nearest graph edge (not node).
+
+    Returns list of dicts with:
+        - poi_idx: index in pois dataframe
+        - edge: (node_u, node_v) tuple
+        - snap_point: (lon, lat) of snap point on edge
+        - distance_along_edge: distance from node_u to snap point (meters)
+        - edge_length: total edge length (meters)
+    """
+    from shapely.geometry import Point, LineString
+    from shapely.ops import nearest_points
+
+    center_lat = (bbox.min_lat + bbox.max_lat) / 2
+    center_lon = (bbox.min_lon + bbox.max_lon) / 2
+    utm_crs = get_utm_zone(center_lon, center_lat)
+    to_utm = Transformer.from_crs("EPSG:4326", utm_crs, always_xy=True)
+
+    edges = list(G.edges(data=True))
+    edge_lines = []
+    for u, v, data in edges:
+        line = LineString([u, v])
+        edge_lines.append(line)
+
+    results = []
+    for poi_idx, row in pois.iterrows():
+        poi_geom = row.geometry
+        poi_point = Point(poi_geom.x, poi_geom.y)
+
+        best_dist = float('inf')
+        best_edge = None
+        best_snap = None
+        best_dist_along = 0
+        best_edge_length = 0
+
+        for i, (u, v, data) in enumerate(edges):
+            line = edge_lines[i]
+            nearest_on_line = line.interpolate(line.project(poi_point))
+            dist = poi_point.distance(nearest_on_line)
+
+            if dist < best_dist:
+                best_dist = dist
+                best_edge = (u, v)
+                best_snap = (nearest_on_line.x, nearest_on_line.y)
+
+                u_utm = to_utm.transform(u[0], u[1])
+                snap_utm = to_utm.transform(nearest_on_line.x, nearest_on_line.y)
+                best_dist_along = ((snap_utm[0] - u_utm[0])**2 + (snap_utm[1] - u_utm[1])**2)**0.5
+                best_edge_length = data.get("weight", 0)
+
+        results.append({
+            "poi_idx": poi_idx,
+            "edge": best_edge,
+            "snap_point": best_snap,
+            "distance_along_edge": best_dist_along,
+            "edge_length": best_edge_length,
+        })
+
+    return results
+
+
+def identify_intersections(G: nx.Graph) -> set:
+    """
+    Identify intersection nodes (degree > 2).
+
+    Returns set of node tuples that are intersections.
+    """
+    intersections = set()
+    for node in G.nodes():
+        if G.degree(node) > 2:
+            intersections.add(node)
+    return intersections
+
+
+def segment_edge(edge_start: tuple, edge_end: tuple, edge_length_m: float,
+                 segment_length_m: float) -> list:
+    """
+    Break an edge into segments of approximately segment_length_m.
+
+    Returns list of dicts with:
+        - start: (lon, lat)
+        - end: (lon, lat)
+        - start_dist: distance from edge_start to segment start
+        - end_dist: distance from edge_start to segment end
+    """
+    if edge_length_m <= 0:
+        return []
+
+    n_segments = max(1, int(round(edge_length_m / segment_length_m)))
+    actual_segment_length = edge_length_m / n_segments
+
+    segments = []
+    for i in range(n_segments):
+        t_start = i / n_segments
+        t_end = (i + 1) / n_segments
+
+        start_lon = edge_start[0] + t_start * (edge_end[0] - edge_start[0])
+        start_lat = edge_start[1] + t_start * (edge_end[1] - edge_start[1])
+        end_lon = edge_start[0] + t_end * (edge_end[0] - edge_start[0])
+        end_lat = edge_start[1] + t_end * (edge_end[1] - edge_start[1])
+
+        segments.append({
+            "start": (start_lon, start_lat),
+            "end": (end_lon, end_lat),
+            "start_dist": i * actual_segment_length,
+            "end_dist": (i + 1) * actual_segment_length,
+        })
+
+    return segments
 
 
 if __name__ == "__main__":

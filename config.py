@@ -25,9 +25,16 @@ class GridConfig:
 
 
 @dataclass
+class StreetsConfig:
+    intersection_penalty_m: float = 50.0  # penalty distance when crossing intersections
+    segment_length_m: float = 10.0  # length of street segments for visualization
+
+
+@dataclass
 class Config:
     kernel: KernelConfig = field(default_factory=KernelConfig)
     grid: GridConfig = field(default_factory=GridConfig)
+    streets: StreetsConfig = field(default_factory=StreetsConfig)
     r_max_m: float = 1500.0  # max influence radius in meters
     tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     poi_config_path: str = "poi_config.json"
@@ -46,9 +53,15 @@ class Config:
         grid = GridConfig(
             cell_size_m=grid_data.get("cell_size_m", 50.0),
         )
+        streets_data = d.get("streets", {})
+        streets = StreetsConfig(
+            intersection_penalty_m=streets_data.get("intersection_penalty_m", 50.0),
+            segment_length_m=streets_data.get("segment_length_m", 10.0),
+        )
         return cls(
             kernel=kernel,
             grid=grid,
+            streets=streets,
             r_max_m=d.get("r_max_m", 1500.0),
             tile_url=d.get("tile_url", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
             poi_config_path=d.get("poi_config_path", "poi_config.json"),
@@ -64,6 +77,10 @@ class Config:
             },
             "grid": {
                 "cell_size_m": self.grid.cell_size_m,
+            },
+            "streets": {
+                "intersection_penalty_m": self.streets.intersection_penalty_m,
+                "segment_length_m": self.streets.segment_length_m,
             },
             "r_max_m": self.r_max_m,
             "tile_url": self.tile_url,
