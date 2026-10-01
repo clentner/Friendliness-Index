@@ -1,0 +1,7 @@
+{
+  "rules": [{
+    "allowed": {"origins": ["https://YOUR-APP-DOMAIN"], "methods": ["GET", "HEAD"], "headers": ["Range", "If-Match"]},
+    "exposeHeaders": ["ETag", "Content-Length", "Content-Range", "Accept-Ranges"],
+    "maxAgeSeconds": 3600
+  }]
+}
