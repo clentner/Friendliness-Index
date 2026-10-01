@@ -54,6 +54,14 @@ all contributing paths and snap candidates for interior queries. Source
 acquisition adds another grid cell of padding. Source coverage and SHA-256 are
 checked before scoring; partial Overpass responses are rejected.
 
+Source completeness is still an assumption: Overpass bbox way selection can
+omit an unusually long original segment crossing the acquisition rectangle when
+all its original nodes are outside. The halo substantially reduces this risk
+for the central-city pilot, but does not prove completeness. A future larger
+PBF source importer should retain every intersecting segment explicitly. Saved
+acquisition category provenance is checked so expanding the allow-list cannot
+silently reuse an extract that never requested those POIs.
+
 Chunking does not mean the entire input is streamed: the bounded source graph is
 resident, and each chunk constructs a smaller sparse graph. The pilot is capped
 at 50 MiB source JSON, 300,000 graph nodes, 20,000 POIs, 200,000 grid cells and 400

@@ -19,6 +19,31 @@ WALKABLE = {"residential", "living_street", "unclassified", "service", "pedestri
             "tertiary", "tertiary_link", "secondary", "secondary_link", "primary", "primary_link"}
 
 
+def poi_filters(config):
+    return [f'["{tag}"]' if values == ["*"] else
+            f'["{tag}"~"^({"|".join(values)})$"]'
+            for tag,values in config["allow"].items()]
+
+
+def acquisition_filter_hash(config):
+    return hashlib.sha256(json.dumps(config["allow"],sort_keys=True).encode()).hexdigest()
+
+
+def validate_categories(provenance, config):
+    expected = acquisition_filter_hash(config)
+    recorded = provenance.get("acquisition_poi_allow_sha256")
+    if recorded is None:
+        # Compatibility with the first locally acquired pilot extract: verify
+        # every exact selector in its saved query before assigning provenance.
+        query = provenance.get("query", "")
+        if not all(f'{kind}{selector}(' in query for selector in poi_filters(config)
+                   for kind in ["node","way","relation"]):
+            raise ValueError("Source query does not cover the configured POI categories; reacquire")
+    elif recorded != expected:
+        raise ValueError("Source POI acquisition categories differ; reacquire for this configuration")
+    provenance["acquisition_poi_allow_sha256"] = expected
+
+
 def projected_bounds(bbox):
     west, south, east, north = bbox
     if not (-72 <= west < east <= -70 and 41 <= south < north <= 43.5):
@@ -51,10 +76,7 @@ def download(bbox, destination):
     west, south, east, north = acquisition_bounds(bbox)
     extent = f"{south},{west},{north},{east}"
     config = json.loads(Path("poi_config.json").read_text(encoding="utf-8"))
-    filters = []
-    for tag, values in config["allow"].items():
-        filters.append(f'["{tag}"]' if values == ["*"] else
-                       f'["{tag}"~"^({"|".join(values)})$"]')
+    filters = poi_filters(config)
     # Avoid transporting full geometries of enormous POI relations. Their
     # bounds-center is an explicit v2 location proxy, not a claimed entrance.
     points_ways = "".join(f'{kind}{f}({extent});' for f in filters for kind in ["node","way"])
@@ -79,6 +101,7 @@ def download(bbox, destination):
                 "downloaded_at":datetime.now(timezone.utc).isoformat(),
                 "osm_timestamp":data.get("osm3s",{}).get("timestamp_osm_base"),
                 "sha256":hashlib.sha256(raw).hexdigest(), "bytes":len(raw),
+                "acquisition_poi_allow_sha256":acquisition_filter_hash(config),
                 "license":"ODbL-1.0", "attribution":"© OpenStreetMap contributors"}
     destination.with_suffix(destination.suffix+".meta.json").write_text(json.dumps(metadata,indent=2), encoding="utf-8")
     return metadata
@@ -139,6 +162,7 @@ def load(path, bbox, config_path="poi_config.json"):
     if "remark" in data:
         raise ValueError("Partial OSM response rejected")
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    validate_categories(provenance,config)
     nodes, ways, pois, seen = {}, [], [], set()
     blocked = {e["id"] for e in data["elements"] if e["type"] == "node" and not permitted(e.get("tags",{}))}
     missing = 0

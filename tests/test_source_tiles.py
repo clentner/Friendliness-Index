@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 import numpy as np
 from PIL import Image
-from pilot.source import walking, allowed_poi, representative, TO_METERS, TO_WGS, acquisition_bounds, projected_bounds
+from pilot.source import walking, allowed_poi, representative, TO_METERS, TO_WGS, acquisition_bounds, projected_bounds, validate_categories, acquisition_filter_hash
 from pilot.tiles import sample_grid, colorize, write_tiles
 
 
@@ -33,6 +33,22 @@ class SourceAndTileTests(unittest.TestCase):
         expanded=acquisition_bounds(bbox)
         self.assertLess(expanded[0],bbox[0])
         self.assertGreater(expanded[3],bbox[3])
+
+    def test_changed_poi_categories_require_new_source(self):
+        config={'allow':{'amenity':['cafe']},'deny':{}}
+        provenance={'acquisition_poi_allow_sha256':acquisition_filter_hash(config)}
+        validate_categories(provenance,config)
+        expanded={'allow':{'amenity':['cafe','library']},'deny':{}}
+        with self.assertRaisesRegex(ValueError,'reacquire'):
+            validate_categories(provenance,expanded)
+
+    def test_legacy_source_query_must_prove_categories(self):
+        config={'allow':{'shop':['*']},'deny':{}}
+        with self.assertRaisesRegex(ValueError,'reacquire'):
+            validate_categories({'query':'node["shop"](0,0,1,1);'},config)
+        provenance={'query':'node["shop"](0,0,1,1);way["shop"](0,0,1,1);relation["shop"](0,0,1,1);'}
+        validate_categories(provenance,config)
+        self.assertEqual(provenance['acquisition_poi_allow_sha256'],acquisition_filter_hash(config))
 
     def test_raster_parent_has_real_child_pixels(self):
         bbox=[-71.065,42.355,-71.055,42.365]

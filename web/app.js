@@ -20,7 +20,7 @@ try {
     map.addLayer({id:'scores',type:'raster',source:'scores',paint:{'raster-opacity':.8,'raster-resampling':'nearest','raster-fade-duration':150}});
     map.addSource('coverage',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]}}});
     map.addLayer({id:'coverage',type:'line',source:'coverage',paint:{'line-color':'#31584b','line-width':1,'line-dasharray':[3,3]}});
-    status.textContent=`${manifest.stats.pois.toLocaleString()} mapped destinations · Fixed score · Boston pilot`;
+    status.textContent='Central Boston + nearby Cambridge · Fixed score';
     document.querySelector('#provenance').textContent=`Map data: ${manifest.source.osm_timestamp || manifest.source.downloaded_at}. Metric: ${manifest.metric_version}.`;
     document.querySelector('#home').onclick=()=>map.fitBounds(bounds,{padding:30,duration:650});
     document.querySelector('#overlay').onchange=event=>map.setLayoutProperty('scores','visibility',event.target.checked?'visible':'none');
@@ -28,7 +28,7 @@ try {
       const center=map.getCenter();
       status.textContent=center.lng<w||center.lng>e||center.lat<s||center.lat>n
         ? 'Outside this pilot’s coverage. Pan back or return to Boston.'
-        : `${manifest.stats.pois.toLocaleString()} mapped destinations · Fixed score · Boston pilot`;
+        : 'Central Boston + nearby Cambridge · Fixed score';
     });
     // Exposed only on the explicitly local QA path; no user telemetry.
     if(offline) window.pilotQA={map,manifest};

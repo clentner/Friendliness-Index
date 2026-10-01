@@ -1,6 +1,13 @@
 # Friendliness Index
 A way to visualize the friendliest places to walk.
 
+## Fixed-score Boston pilot
+
+The opt-in [Boston pilot](docs/PILOT.md) adds a versioned metric, bounded regional
+preprocessing and a static tiled MapLibre viewer. See its [metric definition](docs/METRIC-V2.md)
+and [measured validation](docs/VALIDATION.md). The original PBF generator below is
+preserved. Nothing is deployed by the pilot commands.
+
 Generates a heatmap, e.g. greater Boston area:
 
 ![A walkability heatmap of the Boston metro area](boston.png)

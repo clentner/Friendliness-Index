@@ -48,6 +48,11 @@ QA uses existing Microsoft Edge in headless mode, desktop and phone-sized
 viewports, repeated pan/zoom, screenshots, errors, tile responses, overlay toggle
 and post-GC JS heap samples. It is not a physical phone, GPU-memory measurement,
 or a mobile-network benchmark. See `qa-artifacts/browser-results.json` locally.
+The final check performs 100 pan/zoom operations per viewport. Its desktop-only
+gates are cold load <=3 seconds, p95 frame interval <=33 ms, post-warmup heap
+growth <=2 MiB and at most two pan-phase long tasks. Startup long tasks are
+reported separately. These short-run gates do not establish a ten-minute phone
+memory plateau or mobile-network readiness.
 
 ## Output
 
