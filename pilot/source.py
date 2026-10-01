@@ -13,7 +13,7 @@ from pilot.metric import HALO, SPACING, make_graph
 
 TO_METERS = Transformer.from_crs(4326, 32619, always_xy=True)
 TO_WGS = Transformer.from_crs(32619, 4326, always_xy=True)
-MAX_DOWNLOAD = 50 * 1024 * 1024
+MAX_DOWNLOAD = 250 * 1024 * 1024
 WALKABLE = {"residential", "living_street", "unclassified", "service", "pedestrian",
             "footway", "path", "steps", "track", "corridor", "cycleway", "bridleway",
             "tertiary", "tertiary_link", "secondary", "secondary_link", "primary", "primary_link"}
@@ -90,7 +90,7 @@ def download(bbox, destination):
     with urlopen(request, timeout=120) as response:
         raw = response.read(MAX_DOWNLOAD + 1)
     if len(raw) > MAX_DOWNLOAD:
-        raise ValueError("Source exceeds 50 MiB download cap")
+        raise ValueError("Source exceeds 250 MiB download cap")
     data = json.loads(raw)
     if "remark" in data or not data.get("elements"):
         raise ValueError(f"Incomplete Overpass response: {data.get('remark', 'empty')}")
@@ -150,7 +150,7 @@ def representative(element):
 def load(path, bbox, config_path="poi_config.json"):
     path = Path(path)
     if path.stat().st_size > MAX_DOWNLOAD:
-        raise ValueError("Source exceeds pilot 50 MiB limit")
+        raise ValueError("Source exceeds pilot 250 MiB limit")
     provenance = json.loads(path.with_suffix(path.suffix+".meta.json").read_text(encoding="utf-8"))
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != provenance["sha256"]:
@@ -190,6 +190,6 @@ def load(path, bbox, config_path="poi_config.json"):
     if missing:
         raise ValueError(f"{missing} walking ways lack complete geometry")
     graph = make_graph(nodes,ways)
-    if len(graph.xy) > 300000 or len(pois) > 20000:
+    if len(graph.xy) > 1000000 or len(pois) > 20000:
         raise ValueError("Input exceeds pilot graph/POI budget")
     return graph, np.asarray(pois).reshape(-1,2), provenance

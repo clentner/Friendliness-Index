@@ -10,8 +10,30 @@ import numpy as np
 
 # Support the documented direct-script invocation from the repository root.
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from pilot.metric import score, score_chunked, SPACING
+from scipy.sparse.csgraph import dijkstra
+from pilot.metric import score_chunked, SPACING, snap, RADIUS, DECAY
 from pilot.source import load
+
+
+def forward_reference(graph,queries,pois,deadline):
+    """Independent query-source oracle; bounded by sample count, not all POIs.
+
+    Unlike production's reverse grouped accumulation, one forward Dijkstra per
+    sampled query explicitly sums every reachable individual POI contribution.
+    """
+    qdist,qnode=snap(graph.xy,queries)
+    pdist,pnode=snap(graph.xy,pois)
+    valid=np.isfinite(pdist)
+    pdist,pnode=pdist[valid],pnode[valid]
+    matrix=graph.matrix()
+    result=np.full(len(queries),np.nan)
+    for i in np.flatnonzero(np.isfinite(qdist)):
+        if time.monotonic()>deadline:
+            raise TimeoutError('Forward seam-reference budget exceeded')
+        network=dijkstra(matrix,directed=False,indices=qnode[i],limit=RADIUS-qdist[i])
+        distances=network[pnode]+pdist+qdist[i]
+        result[i]=np.exp(-distances[distances<=RADIUS]/DECAY).sum()
+    return result
 
 
 def main():
@@ -36,7 +58,7 @@ def main():
     selected=np.unique(selected)
     queries=all_queries[selected]
     started=time.monotonic()
-    reference,_=score(graph,queries,pois,started+120)
+    reference=forward_reference(graph,queries,pois,started+120)
     chunked,stats=score_chunked(graph,queries,pois,deadline=started+120)
     stored=np.fromfile(path.parent/manifest["grid"]["raw_url"],dtype="<f4")[selected]
     np.testing.assert_allclose(chunked,reference,rtol=1e-12,atol=1e-12,equal_nan=True)

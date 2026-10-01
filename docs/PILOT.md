@@ -18,7 +18,16 @@ required. The lockfiles pin the tested dependency set.
 
 ## Source and build
 
-The first supported area is central Boston and part of Cambridge, not all of
+For the continuous Boston/Cambridge/Somerville urban pilot, use bounds
+`-71.16,42.33,-71.025,42.42`, source `data/boston-cambridge-somerville.json`,
+output `build/three-cities`, and `--seconds 900`. This covers the three cities'
+useful urban area, not every administrative corner of Boston. The source cap is
+now 250 MiB; graph/cell/POI caps remain explicit. On a memory-constrained laptop,
+monitor process RAM and system headroom externally.
+See [THREE-CITY-PILOT.md](THREE-CITY-PILOT.md) for the exact expanded source,
+resource measurements, coverage limits and browser results.
+
+The initial validation area was central Boston and part of Cambridge, not all of
 Greater Boston. A larger initial bounding box exceeded the 50 MiB source cap;
 the bounded pilot successfully uses this smaller extent:
 
@@ -31,7 +40,7 @@ the bounded pilot successfully uses this smaller extent:
 Open http://127.0.0.1:8000. Existing source/build paths are refused rather than
 overwritten. Reuse the acquired source; use a fresh output directory after code
 changes. Public Overpass is used only for explicit bounded acquisition, never
-for panning. Requests have server time/space limits and a 50 MiB response cap;
+for panning. Requests have server time/space limits and a 250 MiB response cap;
 there is no automatic retry loop. Data provenance accompanies each extract.
 
 Ordinary viewer use requests OSM basemap tiles. Automated QA uses `?offline=1`,

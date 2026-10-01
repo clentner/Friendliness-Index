@@ -64,8 +64,11 @@ silently reuse an extract that never requested those POIs.
 
 Chunking does not mean the entire input is streamed: the bounded source graph is
 resident, and each chunk constructs a smaller sparse graph. The pilot is capped
-at 50 MiB source JSON, 300,000 graph nodes, 20,000 POIs, 200,000 grid cells and 400
+at 250 MiB source JSON, 1,000,000 graph nodes, 20,000 POIs, 200,000 grid cells and 400
 finest-level raster tiles. The search deadline is checked between Dijkstra runs.
+The source and graph caps were raised for the authorized three-city expansion;
+the score, projection, halo and rendering algorithms are unchanged. That laptop
+build also used an external 15-minute wall-clock / 1.5-GiB working-set monitor.
 Large regions require independently acquired bounded source shards; this pilot
 does not download or compute an entire state automatically.
 
