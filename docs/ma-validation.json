@@ -1,0 +1,793 @@
+{
+  "scope": "Unpublished Massachusetts build including islands; source halo across borders",
+  "verification": {
+    "dataset": "5124e42eb1483a75",
+    "raw_blocks": 426,
+    "raw_block_bytes": 174044160,
+    "raw_block_gzip_bytes_measured": 27041001,
+    "raw_gzip_trial_level": 6,
+    "analytical_rectangle_bytes": 366134460,
+    "reachable_cells": 16902533,
+    "state_inside_cells": 43991975,
+    "reachable_fraction_of_state_grid": 0.3842185534975413,
+    "bbox": [
+      -73.5082102,
+      41.1888589,
+      -69.8601042,
+      42.8867783
+    ],
+    "area_km2_including_marine": 27495.00152519986,
+    "walking_network_km_with_halo": 136485.20874930747,
+    "source_graph_nodes": 9919658,
+    "source_graph_edges": 10368853,
+    "source_pois": 50785,
+    "by_zoom": {
+      "7": {
+        "files": 3,
+        "bytes": 86315,
+        "min_bytes": 5333,
+        "max_bytes": 73348,
+        "median_bytes": 7634.0,
+        "p95_bytes": 66776.59999999999,
+        "png_to_rgba_ratio": 0.1097551981608073
+      },
+      "8": {
+        "files": 7,
+        "bytes": 338578,
+        "min_bytes": 1654,
+        "max_bytes": 135756,
+        "median_bytes": 28676.0,
+        "p95_bytes": 123685.79999999997,
+        "png_to_rgba_ratio": 0.18451036725725448
+      },
+      "9": {
+        "files": 19,
+        "bytes": 1260732,
+        "min_bytes": 1228,
+        "max_bytes": 191773,
+        "median_bytes": 57042.0,
+        "p95_bytes": 190547.2,
+        "png_to_rgba_ratio": 0.253121627004523
+      },
+      "10": {
+        "files": 51,
+        "bytes": 4161141,
+        "min_bytes": 407,
+        "max_bytes": 182283,
+        "median_bytes": 95011.0,
+        "p95_bytes": 175308.0,
+        "png_to_rgba_ratio": 0.3112449645996094
+      },
+      "11": {
+        "files": 157,
+        "bytes": 12824220,
+        "min_bytes": 476,
+        "max_bytes": 159736,
+        "median_bytes": 94619.0,
+        "p95_bytes": 148381.8,
+        "png_to_rgba_ratio": 0.31159564947626395
+      },
+      "12": {
+        "files": 514,
+        "bytes": 34376138,
+        "min_bytes": 532,
+        "max_bytes": 131684,
+        "median_bytes": 73638.5,
+        "p95_bytes": 107641.39999999998,
+        "png_to_rgba_ratio": 0.255125602395618
+      },
+      "13": {
+        "files": 1834,
+        "bytes": 70807934,
+        "min_bytes": 403,
+        "max_bytes": 110220,
+        "median_bytes": 39044.5,
+        "p95_bytes": 64538.35,
+        "png_to_rgba_ratio": 0.1472796249805646
+      },
+      "14": {
+        "files": 6893,
+        "bytes": 23372264,
+        "min_bytes": 673,
+        "max_bytes": 21163,
+        "median_bytes": 2062.0,
+        "p95_bytes": 10411.799999999988,
+        "png_to_rgba_ratio": 0.012934587490536142
+      }
+    },
+    "unique_png_payloads": 9478,
+    "unique_png_payload_bytes": 147227322,
+    "finest_nontransparent_pixel_fraction": 0.46741148786656866,
+    "finest_occupied_tile_fraction_of_rectangle": 0.39309951525520387,
+    "metadata_json_bytes": 422955,
+    "manifest_bytes": 154200,
+    "raw_index_bytes": 66476,
+    "coverage_geojson_bytes": 78255,
+    "tiles": 9478,
+    "hosted_files": 9916,
+    "hosted_bytes": 322907478,
+    "largest_asset_bytes": 1048625,
+    "seconds": 25.3807281999907,
+    "frontend_revision": {
+      "change": "Polygon-aware coverage status; existing coverage GeoJSON reused",
+      "app_bytes": 6043,
+      "app_sha256": "71e9ebe87b4ea677c8128b4415762da2455cf4fe841feb0714578620a3f858fb",
+      "hosted_bytes_delta": 1542,
+      "scores_sha256_verified": "353fa80bc24f860093310e80f5ca0124210d13d855d8bf9447cf11baa9b01dae"
+    }
+  },
+  "seams": {
+    "results": [
+      {
+        "location": "Boston",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 67637,
+        "max_error": 1.5987211554602254e-14
+      },
+      {
+        "location": "Worcester",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 54336,
+        "max_error": 2.220446049250313e-16
+      },
+      {
+        "location": "Springfield",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 27530,
+        "max_error": 8.326672684688674e-17
+      },
+      {
+        "location": "Pittsfield",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 14459,
+        "max_error": 8.881784197001252e-16
+      },
+      {
+        "location": "Nantucket",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 11620,
+        "max_error": 2.6645352591003757e-15
+      },
+      {
+        "location": "Vineyard",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 9327,
+        "max_error": 5.329070518200751e-15
+      },
+      {
+        "location": "CT-border",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 3669,
+        "max_error": 0.0
+      },
+      {
+        "location": "NH-border",
+        "samples": 12,
+        "reachable": 12,
+        "reference_nodes": 6613,
+        "max_error": 0.0
+      }
+    ],
+    "cross_border_contributions": [
+      {
+        "border": "Connecticut",
+        "candidate_poi": "n13203954754",
+        "candidate_lonlat": [
+          -71.9544993,
+          42.02546309999999
+        ],
+        "ma_query_cells": 12,
+        "reachable": 12,
+        "max_cross_border_score_contribution": 0.5706330129517165
+      },
+      {
+        "border": "New Hampshire",
+        "candidate_poi": "n11280484770",
+        "candidate_lonlat": [
+          -71.4364419,
+          42.70006909999999
+        ],
+        "ma_query_cells": 12,
+        "reachable": 12,
+        "max_cross_border_score_contribution": 9.001958663487908
+      }
+    ],
+    "seconds": 13.702111400009017,
+    "oracle": "Forward single-query shortest paths on an independent larger graph window"
+  },
+  "scoring": {
+    "jobs": 7197,
+    "inside_cells": 43991975,
+    "reachable_cells": 16902533,
+    "empty_jobs": 1497,
+    "summed_job_seconds": 761.3274148010387,
+    "median_job_seconds": 0.06338580000738148,
+    "p95_job_seconds": 0.2588854800007539,
+    "max_job_seconds": 9.122098399995593,
+    "max_halo_vertices": 67898,
+    "max_halo_pois": 2585,
+    "total_reverse_searches": 176697,
+    "representatives": [
+      {
+        "job": [
+          101,
+          2333,
+          4232,
+          4312,
+          2996,
+          3076
+        ],
+        "sha256": "d61587f2cd62dcf2f1c4074730b991c8c529674ad3c4b7ed90130ba611ab363d",
+        "nodes": 24762,
+        "pois": 189,
+        "inside_cells": 6400,
+        "reachable": 5190,
+        "seconds": 0.3814108000078704,
+        "searches": 179,
+        "query_nodes": 3583,
+        "location": "Springfield"
+      },
+      {
+        "job": [
+          134,
+          2341,
+          4872,
+          4952,
+          5636,
+          5716
+        ],
+        "sha256": "fabfeab170a62ba1292238cdcc60b730b3be38e04c45e090110d1372fd1bda0f",
+        "nodes": 50748,
+        "pois": 654,
+        "inside_cells": 6400,
+        "reachable": 6359,
+        "seconds": 1.7402815999957966,
+        "searches": 598,
+        "query_nodes": 5518,
+        "location": "Worcester"
+      },
+      {
+        "job": [
+          160,
+          2309,
+          2312,
+          2392,
+          7716,
+          7796
+        ],
+        "sha256": "b4b442b45c90ef26b6731919cd6fc842eb76582d96bd527ef598931f3608afa7",
+        "nodes": 19006,
+        "pois": 132,
+        "inside_cells": 6400,
+        "reachable": 6118,
+        "seconds": 0.2665510000078939,
+        "searches": 129,
+        "query_nodes": 4012,
+        "location": "Fall River"
+      },
+      {
+        "job": [
+          165,
+          2345,
+          5192,
+          5272,
+          8116,
+          8196
+        ],
+        "sha256": "b7e5abc0974fb4c3bf5a3c50a4352b81f31f7bfa8d5f0ee769845bc7462222e9",
+        "nodes": 53298,
+        "pois": 1808,
+        "inside_cells": 6400,
+        "reachable": 5454,
+        "seconds": 4.030068299995037,
+        "searches": 1522,
+        "query_nodes": 4393,
+        "location": "Boston"
+      },
+      {
+        "job": [
+          173,
+          2370,
+          7192,
+          7272,
+          8756,
+          8836
+        ],
+        "sha256": "e6b0501aa43af1cfadaa7760fdba1faa5b0b1aa50306d60bed10239571015432",
+        "nodes": 15542,
+        "pois": 230,
+        "inside_cells": 6400,
+        "reachable": 5741,
+        "seconds": 0.34951729999738745,
+        "searches": 209,
+        "query_nodes": 3806,
+        "location": "Newburyport"
+      },
+      {
+        "job": [
+          195,
+          2305,
+          1992,
+          2072,
+          10516,
+          10596
+        ],
+        "sha256": "e16910d8d97012529bb81d4ef5dddb4dc17180ce4ae0761cbdf2bda600fe25b1",
+        "nodes": 18004,
+        "pois": 175,
+        "inside_cells": 6400,
+        "reachable": 5773,
+        "seconds": 0.2851878000074066,
+        "searches": 168,
+        "query_nodes": 3015,
+        "location": "Hyannis"
+      },
+      {
+        "job": [
+          204,
+          2285,
+          392,
+          472,
+          11236,
+          11316
+        ],
+        "sha256": "5a5ad8df379e22151d92c0956abf2f8ded53a8a8441f7c20c67d6c4295bb1c64",
+        "nodes": 9773,
+        "pois": 150,
+        "inside_cells": 6400,
+        "reachable": 2034,
+        "seconds": 0.16267079999670386,
+        "searches": 132,
+        "query_nodes": 906,
+        "location": "Nantucket"
+      },
+      {
+        "job": [
+          75,
+          2354,
+          5912,
+          5992,
+          916,
+          996
+        ],
+        "sha256": "ffea1b4b658a71a30be283f235a4d4fe159454b22e78c9216f874fdfc70e53d3",
+        "nodes": 15200,
+        "pois": 154,
+        "inside_cells": 6400,
+        "reachable": 5923,
+        "seconds": 0.2500357999961125,
+        "searches": 141,
+        "query_nodes": 3291,
+        "location": "Pittsfield"
+      }
+    ]
+  },
+  "browser": {
+    "results": [
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "cities": [
+          {
+            "city": "Boston",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Worcester",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Springfield",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Pittsfield",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "North-Adams",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Lowell",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Provincetown",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Nantucket",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Vineyard-Haven",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          }
+        ],
+        "coverageChecks": [
+          {
+            "place": "Hartford-CT",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Nantucket",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "place": "Providence-RI",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Vineyard-Haven",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "place": "Nashua-NH",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Cuttyhunk",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          }
+        ],
+        "geometryChecks": true,
+        "toggled": true,
+        "overflow": false,
+        "overviewUnobscured": true,
+        "initialLoadMs": 438,
+        "initialTileRequests": 20,
+        "tileRequests": 5302,
+        "interaction": {
+          "panZoomOperations": 100,
+          "frameSamples": 784,
+          "p95FrameMs": 16.800000000000182,
+          "longTasks": 0,
+          "maxLongTaskMs": 0,
+          "postGcHeapBytes": [
+            8804476,
+            9329844,
+            8969432,
+            9110216,
+            9206056,
+            9155372,
+            9117772,
+            9237660,
+            9285900,
+            9314340
+          ],
+          "heapGrowthAfterWarmup": -15504
+        },
+        "postGcHeapBytes": [
+          6498240,
+          6773432,
+          7146152,
+          7531816,
+          7749944,
+          7982944,
+          8233464,
+          8257856,
+          8185548
+        ],
+        "maxPostGcHeapBytes": 8257856,
+        "transparentResponses": 24,
+        "errors": [],
+        "failed": []
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "cities": [
+          {
+            "city": "Boston",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Worcester",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Springfield",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Pittsfield",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "North-Adams",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Lowell",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Provincetown",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Nantucket",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "city": "Vineyard-Haven",
+            "loaded": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          }
+        ],
+        "coverageChecks": [
+          {
+            "place": "Hartford-CT",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Nantucket",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "place": "Providence-RI",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Vineyard-Haven",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          },
+          {
+            "place": "Nashua-NH",
+            "inside": false,
+            "withinBbox": true,
+            "status": "Outside this coverage. Pan back or return to Massachusetts."
+          },
+          {
+            "place": "Cuttyhunk",
+            "inside": true,
+            "withinBbox": true,
+            "status": "Massachusetts \u00c2\u00b7 Fixed score"
+          }
+        ],
+        "geometryChecks": true,
+        "toggled": true,
+        "overflow": false,
+        "overviewUnobscured": true,
+        "initialLoadMs": 239,
+        "initialTileRequests": 3,
+        "tileRequests": 3859,
+        "interaction": {
+          "panZoomOperations": 100,
+          "frameSamples": 789,
+          "p95FrameMs": 16.80000000000109,
+          "longTasks": 0,
+          "maxLongTaskMs": 0,
+          "postGcHeapBytes": [
+            8154572,
+            7718188,
+            8242068,
+            8332140,
+            7834176,
+            8410532,
+            8060300,
+            8528428,
+            8041548,
+            7984944
+          ],
+          "heapGrowthAfterWarmup": 266756
+        },
+        "postGcHeapBytes": [
+          5828056,
+          6081432,
+          6205924,
+          6296708,
+          6501268,
+          6674408,
+          6862056,
+          6951788,
+          6911912
+        ],
+        "maxPostGcHeapBytes": 6951788,
+        "transparentResponses": 33,
+        "errors": [],
+        "failed": []
+      }
+    ],
+    "slowMobile": {
+      "initialLoadMs": 8768,
+      "transferBytes": 1448695,
+      "downloadMbps": 1.5,
+      "latencyMs": 150,
+      "basemap": "Excluded; local application and score assets only"
+    },
+    "fallback": {
+      "transparent": 1,
+      "scoreRequests": 0,
+      "failed": []
+    },
+    "boundaryFailureHandled": true,
+    "network": "Loopback; no production changes or OSM basemap requests",
+    "mobile": "Desktop viewport and network simulation, not physical phones"
+  },
+  "legacy_browser": {
+    "environment": "Windows desktop Edge headless; mobile viewport simulation, not a physical phone",
+    "network": "loopback; all external network blocked; no OSM basemap traffic",
+    "missingManifestErrorPassed": true,
+    "results": [
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "coldMs": 453,
+        "tileRequests": 54,
+        "panZoomOperations": 100,
+        "startupLongTasks": [
+          90,
+          62
+        ],
+        "postGCHeapBytes": [
+          7375832,
+          7553124,
+          7676248,
+          7933824,
+          7993008,
+          7737920,
+          7962892,
+          8408896,
+          8103592,
+          8130824
+        ],
+        "heapGrowthBytes": 577700,
+        "errors": [],
+        "failed": [],
+        "overlayTogglePassed": true,
+        "p95FrameMs": 16.799999999999955,
+        "frames": 1201,
+        "panLongTasks": 0,
+        "maxPanLongTaskMs": 0,
+        "dataset": "43618671d5d41436",
+        "sources": [
+          "scores",
+          "coverage"
+        ],
+        "canvasCount": 1,
+        "bodyScrollWidth": 1440,
+        "performanceGates": {
+          "coldUnder3s": true,
+          "p95FrameUnder33ms": true,
+          "heapGrowthUnder2MiB": true,
+          "panLongTasksAtMost2": true
+        }
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "coldMs": 195,
+        "tileRequests": 56,
+        "panZoomOperations": 100,
+        "startupLongTasks": [],
+        "postGCHeapBytes": [
+          6347236,
+          6534092,
+          6873472,
+          6741068,
+          6827508,
+          6862676,
+          6864484,
+          6905688,
+          6905716,
+          7013112
+        ],
+        "heapGrowthBytes": 479020,
+        "errors": [],
+        "failed": [],
+        "overlayTogglePassed": true,
+        "p95FrameMs": 16.800000000000182,
+        "frames": 1200,
+        "panLongTasks": 0,
+        "maxPanLongTaskMs": 0,
+        "dataset": "43618671d5d41436",
+        "sources": [
+          "scores",
+          "coverage"
+        ],
+        "canvasCount": 1,
+        "bodyScrollWidth": 390,
+        "performanceGates": {
+          "coldUnder3s": true,
+          "p95FrameUnder33ms": true,
+          "heapGrowthUnder2MiB": true,
+          "panLongTasksAtMost2": true
+        }
+      }
+    ]
+  },
+  "stages": {
+    "scoring": {
+      "seconds": 763.09,
+      "peak_working_set_bytes": 182820864,
+      "minimum_available_ram_bytes": 1997692928,
+      "stopped_reason": null,
+      "exit_code": 0
+    },
+    "export": {
+      "seconds": 795.11,
+      "peak_working_set_bytes": 470409216,
+      "minimum_available_ram_bytes": 1299689472,
+      "stopped_reason": null,
+      "exit_code": 0
+    },
+    "verification": {
+      "seconds": 25.04,
+      "peak_working_set_bytes": 421851136,
+      "minimum_available_ram_bytes": 1807163392,
+      "stopped_reason": null,
+      "exit_code": 0
+    },
+    "import_final_resumed": {
+      "seconds": 966.34,
+      "peak_working_set_bytes": 1073680384,
+      "minimum_available_ram_bytes": 1303552000,
+      "stopped_reason": null,
+      "exit_code": 0
+    }
+  },
+  "unit_tests": {
+    "passed": 22,
+    "seconds": 2.714
+  },
+  "limits": {
+    "physical_phone_tested": false,
+    "external_basemap_in_browser_qa": false,
+    "production_deployed": false,
+    "import_timing_is_resumed_not_fresh": true
+  }
+}

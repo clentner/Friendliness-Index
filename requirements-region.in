@@ -1,0 +1,2 @@
+-r requirements-pilot.txt
+osmium==4.3.1
