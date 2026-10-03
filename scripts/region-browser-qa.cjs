@@ -18,7 +18,7 @@ const server=createServer(async(req,res)=>{
  const url=`http://127.0.0.1:${server.address().port}`;
  const browser=await chromium.launch({channel:'msedge',headless:true});const results=[];
  try{
-  for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+  for(const viewport of [{width:1440,height:900},{width:390,height:844},{width:320,height:568}]){
    const context=await browser.newContext({viewport});
    await context.route('**/*',r=>new URL(r.request().url()).origin===url?r.continue():r.abort());
    const page=await context.newPage();const errors=[],failed=[];let transparent=0,tileRequests=0;
@@ -34,9 +34,9 @@ const server=createServer(async(req,res)=>{
    if(!(await page.locator('#status').textContent()).includes('Fixed score'))throw Error('Initial statewide coverage label is incorrect');
    const overviewUnobscured=await page.evaluate(()=>{
     const {map,manifest}=window.pilotQA;const [w,s,e,n]=manifest.bbox;
-    const nw=map.project([w,n]),se=map.project([e,s]);const panel=document.querySelector('.panel').getBoundingClientRect();
+    const nw=map.project([w,n]),se=map.project([e,s]);const controls=document.querySelector('.map-controls').getBoundingClientRect();
     const fullBounds=nw.x>=16&&nw.y>=16&&se.x<=innerWidth-16&&se.y<=innerHeight-16;
-    return fullBounds&&(innerWidth<=600?nw.y>panel.bottom+8:nw.x>panel.right+8);
+    return fullBounds&&nw.y>controls.bottom+8&&controls.height<55&&controls.right<innerWidth-45&&!document.querySelector('.panel,h1,.intro,.legend,#provenance');
    });
    if(!overviewUnobscured)throw Error('Statewide overview is hidden behind the information panel');
    await page.screenshot({path:path.join(out,`state-${viewport.width}.png`)});

@@ -3,11 +3,6 @@
 <meta name="description" content="A fixed-score map of nearby places reached on foot in Greater Boston.">
 <title>Friendliness Index · Boston</title><link rel="stylesheet" href="vendor/maplibre-gl.css"><link rel="stylesheet" href="style.css"></head>
 <body><main id="map" aria-label="Interactive friendliness map"></main>
-<section class="panel" aria-labelledby="title"><p class="eyebrow">GREATER BOSTON · FIELD NOTES</p>
-<h1 id="title">A little more <em>neighborly.</em></h1>
-<p class="intro">Find pockets of cafés, shops, and everyday destinations within an 800-meter walk.</p>
-<div class="legend" role="img" aria-label="Blue means fewer nearby destinations; red means more"><div></div><span>Fewer nearby places</span><span>More</span></div>
-<p id="status" role="status">Loading the Boston pilot…</p>
-<div class="actions"><button id="home">Back to Boston</button><label><input id="overlay" type="checkbox" checked> Show scores</label></div>
-<details><summary>How to read this map</summary><p>One contribution per mapped destination, fading with walking distance. A fixed scale keeps colors comparable as you pan. Clear areas are outside coverage or too far from the walking network—not a low score.</p><p>This is an amenity-proximity experiment, not a street-safety rating. Mapped locations stand in for entrances; barriers and missing map data can affect results.</p><p id="provenance"></p><p><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors · ODbL</a></p></details>
-</section><script src="vendor/maplibre-gl.js"></script><script type="module" src="app.js"></script></body></html>
+<nav class="map-controls" aria-label="Map controls"><button id="home" title="Back to Boston">Home</button><label><input id="overlay" type="checkbox" checked> Show scores</label></nav>
+<p id="status" class="sr-only" role="status">Loading the Boston pilot.</p>
+<script src="vendor/maplibre-gl.js"></script><script type="module" src="app.js"></script></body></html>

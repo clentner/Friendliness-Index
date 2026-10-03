@@ -28,8 +28,7 @@ try {
   const availableTiles = manifest.available_tiles ? new Set(manifest.available_tiles) : null;
   if (manifest.area_label) {
     document.title = `Friendliness Index — ${areaLabel}`;
-    document.querySelector('.eyebrow').textContent = `${areaLabel.toUpperCase()} · FIELD NOTES`;
-    document.querySelector('#home').textContent = `Back to ${areaLabel}`;
+    document.querySelector('#home').title = `Back to ${areaLabel}`;
   }
   const [w,s,e,n] = manifest.bbox;
   const bounds = [[w,s],[e,n]];
@@ -42,10 +41,7 @@ try {
   }
   const overviewPadding = () => {
     if (!manifest.area_label) return 30;
-    const panel = document.querySelector('.panel').getBoundingClientRect();
-    return innerWidth <= 600
-      ? {top:panel.bottom+16,bottom:30,left:24,right:24}
-      : {top:40,bottom:40,left:panel.right+30,right:40};
+    return {top:72,bottom:40,left:24,right:52};
   };
   const sources = offline ? {} : {base:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}};
   const layers = [{id:'background',type:'background',paint:{'background-color':'#e9efed'}}];
@@ -63,7 +59,7 @@ try {
       return {url};
     }});
   const fitCoverage=duration=>{
-    // Persistent panel padding keeps the camera's geographic center in the
+    // Persistent control padding keeps the camera's geographic center in the
     // visible map area, so the overview and its coverage label agree.
     if (manifest.area_label) map.setPadding(overviewPadding());
     map.fitBounds(bounds,{padding:manifest.area_label ? 0 : 30,duration});
@@ -84,12 +80,11 @@ try {
         : `Outside this coverage. Pan back or return to ${areaLabel}.`;
     };
     updateCoverageStatus();
-    document.querySelector('#provenance').textContent=`Map data: ${manifest.source.osm_timestamp || manifest.source.downloaded_at}. Metric: ${manifest.metric_version}.`;
     document.querySelector('#home').onclick=()=>fitCoverage(650);
     document.querySelector('#overlay').onchange=event=>map.setLayoutProperty('scores','visibility',event.target.checked?'visible':'none');
     map.on('moveend',updateCoverageStatus);
     // Exposed only on the explicitly local QA path; no user telemetry.
     if(offline) window.pilotQA={map,manifest,coversLocation};
   });
-  map.on('error',event=>{console.error(event.error);status.textContent='Some map tiles could not load. Check your connection and retry.';});
-} catch(error) {status.textContent=`Could not load the pilot: ${error.message}`;console.error(error);}
+  map.on('error',event=>{console.error(event.error);status.className='map-error';status.textContent='Some map tiles could not load. Check your connection and retry.';});
+} catch(error) {status.className='map-error';status.textContent=`Could not load the pilot: ${error.message}`;console.error(error);}
