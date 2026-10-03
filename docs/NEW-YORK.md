@@ -1,3 +1,60 @@
+# Continuous Massachusetts and New York map — final local revision
+
+The final candidate is `build/ma-ny-continuous-final`, display dataset
+`159c1e74953cb90e`. Both states appear on one map without a region switch.
+Viewport tile addresses select only the relevant archive, and clicks select the
+original analytical float32 block. Scores, scoring parameters, state datasets,
+production and rollback artifacts are unchanged. No NY objects were uploaded.
+
+## Final verified candidate
+
+- 2,734 Pages upload inputs, 2,733 served assets, 1,074,012,573 bytes;
+  increment over MA: 2,293 assets / 898,461,532 bytes. Largest asset: 1,106,773 bytes.
+- The continuous revision adds 97 inputs / 3,278,050 bytes over the earlier
+  switcher candidate. It reuses all 2,607 original float32 parts.
+- 99 shared original tile addresses become deterministic composite PNGs;
+  three low-zoom MA overview tiles bring the composite total to 102 /
+  4,044,676 bytes. Each pixel copies the first nontransparent MA tuple or NY
+  tuple, preserving alpha without source-over blending. One raster layer displays
+  the result. Analytical overlap prefers finite MA values, including zero;
+  MA NaN falls through to NY. Failures reject rather than masquerading as no-data.
+- Readers and raw indexes are lazy. Cold overview loads no raw blocks or NY
+  detail archive. Boston detail requests no NY archive; NYC detail requests no
+  MA archive. The z12/z13 source transition is exercised on each phone width.
+- All 41 Python regression tests and 8 JavaScript checks pass. Saved final
+  browser runs cover 17 views at 1440x900, 390x844 and 320x568: 51 archive/reference
+  screenshot pairs rechecked with zero differing pixels; 43 independently derived
+  raw-score fixtures per width include finite zero, NaN, borders and outside
+  coverage. No page errors, request failures or overflow; framing, Home, overlay,
+  attribution and click popup checks pass. The 320 px overview was visually inspected.
+- Final package audit rehashed every staged asset and both original dataset
+  payload trees, matching the saved inventory and current frontend/builder sources.
+  Audit: 3.250 seconds; final staging: 11.03 monitored seconds, 61,304,832 bytes
+  peak working set. This reused completed data; no import/scoring/export rerun.
+
+| Width | Cold archive ranges | Cold archive bodies | Cold static bodies | Cold encoded transfer | Home archive bodies |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1440 | 11 | 387,318 | 1,633,738 | 2,028,871 | 344,667 |
+| 390 | 3 | 20,910 | 1,449,750 | 1,474,112 | 4,526 |
+| 320 | 3 | 20,910 | 1,449,750 | 1,474,112 | 4,526 |
+
+Body bytes and CDP encoded transfers are separate measurements. Archives use
+Range/206 only through local URL interception, with basemap network requests
+replaced locally. These are not live endpoint or cellular-network measurements.
+
+Evidence: `qa-artifacts/continuous/preparation.json`,
+`staging-final.resources.json`, `final-package-audit.json`,
+`browser-final/results.json` and `browser-final/pixel-comparison.json`.
+Reproduce with `scripts/prepare-continuous-site.py` (new output path required),
+`scripts/continuous-query-fixtures.py`, `scripts/continuous-browser-qa.cjs` and
+`scripts/compare-pmtiles-screenshots.py`. Preserve the current final candidate;
+publication follows [the revised plan](../deploy/NY-EXPANSION.md) only after approval.
+
+## Historical data-build and switcher evidence
+
+The following record describes earlier candidates and checkpoints. Its switcher,
+`/ny/` layout and 2,637-input counts are superseded by the final revision above.
+
 # New York local expansion
 
 Massachusetts production and rollback artifacts are unchanged. Nothing from this

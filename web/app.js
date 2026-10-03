@@ -22,6 +22,7 @@ try {
   const response = await fetch('manifest.json',{cache:'no-cache'});
   if (!response.ok) throw new Error('Dataset manifest unavailable');
   const manifest = await response.json();
+  const continuous = manifest.layout === 'continuous-regions-v1';
   const archiveUrl = manifest.archive_url ? new URL(manifest.archive_url,location.href).href : null;
   const archiveParts = manifest.archive_parts || null;
   if (archiveParts) {
@@ -90,6 +91,9 @@ try {
     coverage=await boundaryResponse.json();
     if (!['Polygon','MultiPolygon'].includes(coverage.geometry?.type)) throw new Error('Unsupported coverage boundary');
   }
+  const combinedData=continuous
+    ? await (await import('./continuous-data.js')).continuousData(manifest,coversLocation,coverage)
+    : null;
   const overviewPadding = () => {
     if (!manifest.area_label) return 30;
     return {top:72,bottom:40,left:24,right:52};
@@ -118,7 +122,9 @@ try {
   if (manifest.area_label) fitCoverage(0);
   map.addControl(new maplibregl.NavigationControl(),'top-right');
   map.on('load',()=>{
-    map.addSource('scores',{type:'raster',...(archiveParts
+    map.addSource('scores',{type:'raster',...(continuous
+      ? {tiles:[`continuous://${manifest.dataset}/{z}/{x}/{y}.png`]}
+      : archiveParts
       ? {tiles:[`friendliness://${manifest.dataset}/{z}/{x}/{y}.png`]}
       : archiveUrl
       ? {url:'pmtiles://'+archiveUrl}
@@ -135,11 +141,25 @@ try {
         : `Outside this coverage. Pan back or return to ${areaLabel}.`;
     };
     updateCoverageStatus();
-    document.querySelector('#home').onclick=()=>fitCoverage(650);
+    document.querySelector('#home').onclick=()=>fitCoverage(continuous ? 0 : 650);
     document.querySelector('#overlay').onchange=event=>map.setLayoutProperty('scores','visibility',event.target.checked?'visible':'none');
     map.on('moveend',updateCoverageStatus);
     // Exposed only on the explicitly local QA path; no user telemetry.
-    if(offline) window.pilotQA={map,manifest,coversLocation};
+    if(combinedData){
+      let selection=0,popup;
+      map.on('click',async event=>{
+        const current=++selection;popup?.remove();
+        const text=document.createElement('span');text.textContent='Loading score…';
+        popup=new maplibregl.Popup().setLngLat(event.lngLat).setDOMContent(text).addTo(map);
+        try{
+          const result=await combinedData.queryScore(event.lngLat.lng,event.lngLat.lat);
+          if(current!==selection)return;
+          text.textContent=result.status==='value' ? `Fixed score: ${result.value.toFixed(3)}`
+            : result.status==='outside' ? 'Outside available coverage' : 'No score at this location';
+        }catch(error){if(current===selection)text.textContent='Score unavailable. Please retry.';console.error(error)}
+      });
+    }
+    if(offline) window.pilotQA={map,manifest,coversLocation,...combinedData};
   });
   map.on('error',event=>{console.error(event.error);status.className='map-error';status.textContent='Some map tiles could not load. Check your connection and retry.';});
 } catch(error) {status.className='map-error';status.textContent=`Could not load the pilot: ${error.message}`;console.error(error);}

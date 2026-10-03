@@ -7,3 +7,4 @@ data/
 build/
 qa-artifacts/
 web/vendor/
+.wrangler/
