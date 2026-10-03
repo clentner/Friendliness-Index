@@ -45,7 +45,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,default=Path('build/ma-ny-continuous-final'))
     parser.add_argument('--report',type=Path,default=Path('qa-artifacts/continuous/preparation.json'))
+    parser.add_argument('--archive-config',type=Path,help='Optional lossless NY delivery partition revision')
     args=parser.parse_args();started=time.monotonic()
+    archive_config=json.loads(args.archive_config.read_text()) if args.archive_config else None
     assert not args.output.exists(),'Refusing to replace a staged site'
     roots={'ma':Path('build/massachusetts-pmtiles'),'ny':Path('build/new-york-pmtiles')}
     loose={'ma':Path('build/massachusetts'),'ny':Path('build/new-york-display')}
@@ -57,6 +59,7 @@ def main():
     for manifest in manifests.values():assert manifest['grid']['crs']=='EPSG:32619'
     identity={'source_manifests':{key:sha(root/'manifest.json') for key,root in roots.items()},
               'policy':'first-nontransparent-MA-then-NY-v1','builder_sha256':sha(__file__)}
+    if archive_config:identity['archive_config_sha256']=sha(args.archive_config)
     dataset=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()[:16]
     target=args.output;target.mkdir(parents=True)
     for key,root in roots.items():
@@ -128,6 +131,10 @@ def main():
     regions=[]
     for key,manifest in manifests.items():
         parts=manifest.get('archive_parts') or [{k:manifest[k] for k in ['minzoom','maxzoom','archive_url','archive_bytes','archive_sha256']}]
+        if key=='ny' and archive_config:
+            assert archive_config['dataset']==manifest['dataset']
+            parts=archive_config['archive_parts']
+            for z in range(5,15):assert sum(p['minzoom']<=z<=p['maxzoom'] for p in parts)==1
         regions.append({k:manifest[k] for k in ['dataset','area_label','bbox','grid','coverage_url','scores_sha256']}|{'id':key,'archive_parts':parts})
     manifest={'layout':'continuous-regions-v1','dataset':dataset,'area_label':'Massachusetts and New York',
               'bbox':list(coverage.bounds),'metric_version':manifests['ma']['metric_version'],
@@ -150,7 +157,7 @@ def main():
             'largest_asset_bytes':max(x['bytes'] for x in assets.values()),'shared_original_tiles':len(shared),
             'composite_tiles':len(composites),'composite_bytes':sum(x['bytes'] for x in pixel_proof.values()),
             'routing_bytes':(immutable/'routing.json').stat().st_size,'source_staging_unchanged':True,
-            'raw_parts':sum(name.endswith('.f32') for name in assets),'r2_additional_bytes_vs_previous_plan':0,
+            'raw_parts':sum(name.endswith('.f32') for name in assets),'r2_additional_bytes_vs_previous_plan':archive_config['archive_bytes_total']-561142478 if archive_config else 0,
             'changed_ma_assets':[name for name,receipt in originals['ma'].items() if assets.get(name)!=receipt],
             'unchanged_ma_assets':sum(assets.get(name)==receipt for name,receipt in originals['ma'].items()),
             'pixel_proof':pixel_proof,'assets':assets,'published':False}

@@ -1,4 +1,33 @@
-# Continuous Massachusetts and New York map — final local revision
+# Approved lossless upload revision (300 MB browser limit)
+
+The active publication candidate is `build/ma-ny-continuous-ui300`, display identity
+`ead61093d03122c6`, configured by `deploy/ny-archives-ui300.json`. Publication is
+approved; R2 upload/public-endpoint QA is still pending. The previous continuous
+candidate below is preserved and superseded only in delivery partitioning.
+
+The 352,685,199-byte detail archive is losslessly repartitioned by native zoom:
+z13 is 270,440,592 bytes (10,224 unchanged PNGs); z14 is 82,247,148 bytes
+(38,516 unchanged PNGs). The original overview is unchanged. Python and the
+independent official JavaScript reader checked every new payload against the
+original inventory, with exact disjoint/complete tile coverage. There is no
+spatial boundary to introduce a seam. Existing zoom routing selects one archive
+per address without eager unrelated detail downloads. No analytical work repeats.
+
+The revised bundle has 2,734 inputs / 1,074,013,041 bytes, adding 2,293 inputs /
+898,462,000 bytes over MA (468 additional Pages bytes over the prior continuous
+candidate). R2 increment is three objects / 561,145,019 bytes: just 2,541 bytes
+more than the original two-object plan. All three new objects fit under 300 MB.
+Scores, 2,607 float32 parts, 102 composite pixels/payloads, MA archive and rollback
+are unchanged. Revised staging took 14.526 seconds, reusing completed data.
+
+Exact upload paths/keys/hashes and deployment procedure are in
+[the revised publication plan](../deploy/NY-EXPANSION.md). Evidence: `qa-artifacts/ny/archives/ui300/`,
+`qa-artifacts/continuous/preparation-ui300.json`, `ui300-tests.log`, and
+`browser-ui300/`. Final browser/package results and live deployment receipt follow.
+
+## Previous continuous candidate (historical)
+
+# Continuous Massachusetts and New York map â€” final local revision
 
 The final candidate is `build/ma-ny-continuous-final`, display dataset
 `159c1e74953cb90e`. Both states appear on one map without a region switch.
@@ -84,7 +113,7 @@ separately. Evidence: `build-resources.json`, `combined-site.json` and
 ## Archive browser validation
 
 The exact staged NY frontend passed six local Edge/Playwright runs: loose PNG
-and two-archive delivery at 1440×900, 390×844 and 320×568. All **63 screenshot
+and two-archive delivery at 1440Ã—900, 390Ã—844 and 320Ã—568. All **63 screenshot
 pairs match exactly**, with zero differing pixels. Each pair covers the full
 state overview, both sides of the z12/z13 archive boundary, 15 covered urban,
 island and remote locations, and three outside-coverage locations. Home, the
@@ -198,7 +227,7 @@ at 20 locations: 16 exact RGBA matches and four correctly absent no-data tiles.
 It completed in 2.01 monitored seconds at 100,806,656 bytes peak RAM. Evidence:
 `display-verification.json`, `pixel-reference.json` and their resource receipts.
 
-`package-region-archives.py` built z5–12 overview and z13–14 detail archives in
+`package-region-archives.py` built z5â€“12 overview and z13â€“14 detail archives in
 55.12 monitored seconds at 112,996,352 bytes peak RAM. Their exact sizes are
 **208,457,279** and **352,685,199 bytes**; their payloads are 208,444,975 and
 352,588,533 bytes. Both Python and the independent official JavaScript 4.5.0
@@ -544,7 +573,7 @@ The plan includes NYC, Long Island, Fishers Island, northern border communities
 and remote Adirondack samples. All 17 representative coordinates are inside the
 boundary. It contains 36,267 absolute 2 km jobs, versus MA's 7,197. The enclosing
 20,300 by 26,310 float32 raster requires 2,136,372,000 bytes. Its rectangular
-zoom 7–14 pyramid has 137,750 addresses, including 103,012 at zoom 14; these are
+zoom 7â€“14 pyramid has 137,750 addresses, including 103,012 at zoom 14; these are
 upper bounds, not measured nontransparent export counts.
 
 Scalar job geometry planning measured 28.059 seconds. Batching intersections by

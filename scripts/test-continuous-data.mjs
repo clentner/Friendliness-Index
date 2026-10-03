@@ -29,3 +29,10 @@ for(const [a,b,status,region,badHash] of [[1,2,'value','ma'],[0,2,'value','ma'],
  checks++;
 }
 console.log(JSON.stringify({checks,overlapPriority:'MA first, finite zero retained, NaN falls through',checksumFailure:'rejects without fallback'}));
+
+// Three lossless archive partitions route solely by native zoom; no spatial seam.
+globalThis.fetch=async()=>({ok:true,json:async()=>({regions:{ny:{'12/9':[3,3],'13/9':[3,3],'14/9':[3,3]}},composite:{}})});
+const split=await continuousData({routing_url:'routing.json',regions:[{id:'ny',archive_parts:[{minzoom:5,maxzoom:12,archive_url:'overview'},{minzoom:13,maxzoom:13,archive_url:'z13'},{minzoom:14,maxzoom:14,archive_url:'z14'}]}]},()=>true,{geometry:{}});
+for(const [z,url] of [[12,'overview'],[13,'z13'],[14,'z14']])assert.deepEqual(split.tileOwner(z,3,9),{kind:'archive',region:'ny',url});
+assert.deepEqual(split.tileOwner(14,4,9),{kind:'empty'});
+console.log(JSON.stringify({splitRoutingChecks:4,spatialPartition:false}));

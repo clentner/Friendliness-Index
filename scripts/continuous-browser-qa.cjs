@@ -1,8 +1,8 @@
 const {createPreview}=require('./pmtiles-preview.cjs');
 const {chromium}=require('playwright');
 const http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
-const root=path.resolve(process.env.CONTINUOUS_ROOT||'build/ma-ny-continuous-final');
-const out=path.resolve('qa-artifacts/continuous/browser-final');
+const root=path.resolve(process.env.CONTINUOUS_ROOT||'build/ma-ny-continuous-ui300');
+const out=path.resolve(process.env.CONTINUOUS_QA_OUTPUT||'qa-artifacts/continuous/browser-ui300');
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.geojson':'application/geo+json','.png':'image/png'};
 async function settle(page){await page.waitForFunction(()=>window.pilotQA?.map.isStyleLoaded()&&window.pilotQA.map.areTilesLoaded()&&!window.pilotQA.map.isMoving(),null,{timeout:60000});await page.waitForTimeout(250)}
 (async()=>{
@@ -29,11 +29,12 @@ async function settle(page){await page.waitForFunction(()=>window.pilotQA?.map.i
   }catch(error){res.writeHead(404).end(String(error))}
  });
  await new Promise(r=>site.listen(0,'127.0.0.1',r));
- const origin=`http://127.0.0.1:${site.address().port}`,browser=await chromium.launch({channel:'msedge',headless:true});
+ const origin=`http://127.0.0.1:${site.address().port}`,browser=await chromium.launch({channel:process.env.QA_BROWSER_CHANNEL||'chrome',headless:true});
  const runs=[];
  const places=[['Boston',[-71.06,42.356],14,'ma'],['Midtown',[-73.985,40.758],14,'ny'],
   ['overview-boundary',[-73.985,40.758],11.49,'ny'],['detail-boundary',[-73.985,40.758],11.51,'ny'],
-  ['seam-west',[-73.43,42.6],13,null],['seam-east',[-73.28,42.6],13,null],['seam-shared',[-73.4,42.52],14,null],
+  ['native13-boundary',[-73.985,40.758],12.49,'ny'],['native14-boundary',[-73.985,40.758],12.51,'ny'],
+ ['seam-west',[-73.43,42.6],13,null],['seam-east',[-73.28,42.6],13,null],['seam-shared',[-73.4,42.52],14,null],
   ['Pittsfield',[-73.245,42.451],14,'ma'],['Buffalo',[-78.878,42.886],14,'ny'],
   ['Fishers',[-72.018,41.263],14,'ny'],['Montauk',[-71.94,41.035],14,'ny'],
   ['Nantucket',[-70.099,41.284],14,'ma'],['Adirondacks',[-74.3,44],14,'ny'],
@@ -72,7 +73,7 @@ async function settle(page){await page.waitForFunction(()=>window.pilotQA?.map.i
     assert.ok(ranges.every(r=>r.status===206&&r.range));previousArchive=preview.requests.length;previousStatic=records.length;previousEncoded=encoded;
    }
    await page.goto(origin+'/?offline=1');await settle(page);snapshot('cold-overview');
-   assert.equal(stages[0].rawRequests,0);assert.ok(!stages[0].archives.some(s=>s.endsWith('-detail.pmtiles')));
+   assert.equal(stages[0].rawRequests,0);assert.ok(!stages[0].archives.some(s=>s.includes('-detail-z')));
    const framing=await page.evaluate(()=>{const {map,manifest}=pilotQA,[w,s,e,n]=manifest.bbox;return [[w,s],[w,n],[e,s],[e,n]].map(p=>map.project(p))});
    for(const p of framing)assert.ok(p.x>=23&&p.x<=viewport.width-51&&p.y>=71&&p.y<=viewport.height-39);
    assert.equal(await page.locator('.region-navigation').count(),0);
@@ -80,8 +81,12 @@ async function settle(page){await page.waitForFunction(()=>window.pilotQA?.map.i
    for(const [name,center,zoom,region] of places){
     await page.evaluate(({center,zoom,pan})=>pan?pilotQA.map.easeTo({center,zoom,duration:200}):pilotQA.map.jumpTo({center,zoom}),{center,zoom,pan:name.startsWith('seam-')});await settle(page);snapshot(name);
     if(mode==='archive'&&region)assert.ok(stages.at(-1).archives.every(a=>region==='ma'?a.startsWith('massachusetts-'):a.startsWith('new-york-')),'Unrelated state archive requested for '+name);
-    if(mode==='archive'&&name==='detail-boundary')assert.ok(stages.at(-1).archives.some(a=>a.endsWith('-detail.pmtiles')));
+    if(mode==='archive'&&name==='detail-boundary')assert.ok(stages.at(-1).archives.some(a=>!a.endsWith('-overview.pmtiles')&&!a.startsWith('massachusetts-')));
     if(mode==='archive'&&name==='overview-boundary')assert.ok(stages.at(-1).archives.some(a=>a.endsWith('-overview.pmtiles')));
+    if(name==='native13-boundary'||name==='native14-boundary'){
+     const suffix=name==='native13-boundary'?'-detail-z13.pmtiles':'-detail-z14.pmtiles';
+     assert.ok(stages.at(-1).archives.every(a=>a.endsWith(suffix)),name+' requested wrong zoom archive');
+    }
     const rasterLayers=await page.evaluate(()=>pilotQA.map.getStyle().layers.filter(l=>l.type==='raster').map(l=>l.id));assert.deepEqual(rasterLayers,['scores']);
     await page.screenshot({path:path.join(out,`${mode}-${viewport.width}-${name}.png`)});
    }
