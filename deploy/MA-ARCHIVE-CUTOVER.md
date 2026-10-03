@@ -92,7 +92,9 @@ requests to verify actual object size, PMTiles header/metadata, several original
 tile hashes, missing tiles, HTTPS, 206/Content-Range/ETag, CORS from both approved
 frontend origins, and cache behavior. Exercise the real archive endpoint from
 desktop and phone-sized browser contexts. Report physical-device testing limits;
-the historical physical-phone release gate in `deploy/README.md` remains explicit.
+physical-device testing is not represented by phone-sized desktop viewports. The
+user subsequently authorized this cutover after real-endpoint browser QA; the
+older physical-phone gate in `deploy/README.md` is superseded for this cutover.
 
 Only after those checks, deploy `build/massachusetts-pmtiles` to the existing
 `friendliness-index` Pages project, using its existing direct-upload production
