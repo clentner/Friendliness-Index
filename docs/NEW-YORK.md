@@ -23,7 +23,11 @@ are unchanged. Revised staging took 14.526 seconds, reusing completed data.
 Exact upload paths/keys/hashes and deployment procedure are in
 [the revised publication plan](../deploy/NY-EXPANSION.md). Evidence: `qa-artifacts/ny/archives/ui300/`,
 `qa-artifacts/continuous/preparation-ui300.json`, `ui300-tests.log`, and
-`browser-ui300/`. Final browser/package results and live deployment receipt follow.
+`browser-ui300/`. All 41 Python tests, 8 original JS checks and 4 new split-routing checks pass.
+All six local browser runs pass 19 views each; 57 screenshot comparisons are
+pixel-identical, with 43 raw-score fixtures per archive viewport. The package
+audit rehashed all 2,734 assets and both preserved source payload trees. Live
+endpoint checks and deployment receipt follow.
 
 ## Previous continuous candidate (historical)
 

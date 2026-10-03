@@ -60,7 +60,10 @@ Local split/readers, staging and regression results are under
 `qa-artifacts/ny/archives/ui300/` and `qa-artifacts/continuous/`. The new staging
 report is `preparation-ui300.json`; browser comparison output is `browser-ui300/`.
 The prior continuous evidence remains under `browser-final/` and is historical.
-Final revised browser/package results must pass before deployment.
+The revised local candidate passes 41 Python tests and 12 JS checks, all six
+browser runs (19 views each), 57 pixel-identical comparisons, 43 raw-score fixtures
+per viewport and all 2,734 final package hashes. Audit:
+`final-package-audit-ui300.json`. Public endpoint/staged-live checks remain pending.
 
 1. Receive the browser operator's upload result; do not operate Edge concurrently.
 2. Run `scripts/verify-ny-public-endpoints.py` for exact full streamed size/hash,
