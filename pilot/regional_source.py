@@ -20,8 +20,8 @@ from pilot.source import TO_METERS, TO_WGS, allowed_poi, permitted, walking, rep
 def boundary(path):
     data=json.loads(Path(path).read_text(encoding='utf-8'))
     relation=data['elements'][0]
-    if relation.get('tags',{}).get('ISO3166-2')!='US-MA':
-        raise ValueError('Expected Massachusetts administrative boundary')
+    if relation.get('tags',{}).get('ISO3166-2') not in ('US-MA','US-NY'):
+        raise ValueError('Expected Massachusetts or New York administrative boundary')
     rings={}
     for role in ('outer','inner'):
         lines=[LineString([(p['lon'],p['lat']) for p in m['geometry']])
@@ -32,7 +32,7 @@ def boundary(path):
         rings[role]=unary_union(polygons)
     result=rings['outer'].difference(rings['inner'])
     if result.is_empty or not result.is_valid:
-        raise ValueError('Incomplete Massachusetts boundary geometry')
+        raise ValueError('Incomplete administrative boundary geometry')
     projected=transform(TO_METERS.transform,result)
     prepare(projected)
     return result, projected
@@ -80,7 +80,8 @@ def import_identity(root):
             'metric_version':metric.VERSION,'halo_m':metric.HALO,'spacing_m':metric.SPACING}
 
 
-def index_sources(root,destination,resume=False):
+def index_sources(root,destination,resume=False,coordinate_backend='paged'):
+    if coordinate_backend not in ('paged','native'):raise ValueError('Unknown coordinate backend')
     root=Path(root);destination=Path(destination)
     identity=import_identity(root);identity_path=destination.with_suffix('.import.json')
     if destination.exists():
@@ -94,19 +95,43 @@ def index_sources(root,destination,resume=False):
     runtime={name:os.environ.setdefault(name,'2') for name in
              ['OSMIUM_POOL_THREADS','OSMIUM_MAX_INPUT_QUEUE_SIZE',
               'OSMIUM_MAX_OSMDATA_QUEUE_SIZE','OSMIUM_MAX_WORK_QUEUE_SIZE']}
+    runtime['coordinate_backend']=coordinate_backend
     started=time.monotonic()
     records=json.loads((root/'sources.json').read_text())
-    if len(records)!=6:raise ValueError('All six dated regional extracts are required')
+    state=json.loads((root/'boundary.json').read_text(encoding='utf-8'))['elements'][0]['tags']['ISO3166-2']
+    required={'US-MA':{'massachusetts','connecticut','rhode-island','new-hampshire','vermont','new-york'},
+              'US-NY':{'new-york','massachusetts','connecticut','vermont','new-jersey','pennsylvania','rhode-island','ontario','quebec'}}[state]
+    if {r['path'].split('-261001')[0] for r in records if not r.get('supplemental')} != required:
+        raise ValueError('Missing or unexpected dated regional extracts')
     core_wgs,core=boundary(root/'boundary.json')
     support=core.buffer(metric.HALO+2*metric.SPACING)
     prepare(support)
-    coverage=unary_union([transform(TO_METERS.transform,read_poly(root/(r['path'].split('-261001')[0]+'.poly'))) for r in records])
+    coverage=unary_union([transform(TO_METERS.transform,read_poly(root/r.get('poly',r['path'].split('-261001')[0]+'.poly'))) for r in records])
     missing_area=support.difference(coverage).area
     if missing_area>1:
         raise ValueError(f'Source polygons miss {missing_area:.1f} square meters of required context')
     stamps=set()
     for r in records:
         p=root/r['path']
+        poly=root/r.get('poly',r['path'].split('-261001')[0]+'.poly')
+        if r.get('poly_sha256') and hashlib.sha256(poly.read_bytes()).hexdigest()!=r['poly_sha256']:
+            raise ValueError('Source coverage polygon changed')
+        if r.get('supplemental'):
+            if r.get('kind')=='dated-parent-context':
+                report_path=root/r['derivation']
+                if hashlib.sha256(report_path.read_bytes()).hexdigest()!=r['derivation_sha256']:raise ValueError('Parent derivation report changed')
+                report=json.loads(report_path.read_text())
+                if report['sha256']!=r['sha256'] or report['poly_sha256']!=r['poly_sha256']:raise ValueError('Parent derivation output differs')
+                if report['poi_config_sha256']!=hashlib.sha256(Path('poi_config.json').read_bytes()).hexdigest():raise ValueError('Parent POI selection changed')
+                with Path(report['parent']['parent']).open('rb') as stream:
+                    if hashlib.file_digest(stream,'sha256').hexdigest()!=report['parent']['parent_sha256']:raise ValueError('Dated parent checksum changed')
+            else:
+                from pilot.source import acquisition_filter_hash
+                if r['acquisition_poi_allow_sha256']!=acquisition_filter_hash(json.loads(Path('poi_config.json').read_text())):
+                    raise ValueError('Supplemental acquisition categories changed')
+                for key in ('query','response'):
+                    if hashlib.sha256((root/r[key]).read_bytes()).hexdigest()!=r[key+'_sha256']:
+                        raise ValueError('Supplemental source provenance changed')
         with p.open('rb') as f:
             if hashlib.file_digest(f,'sha256').hexdigest()!=r['sha256']:raise ValueError('Source checksum changed')
         reader=osmium.io.Reader(str(p))
@@ -127,7 +152,8 @@ def index_sources(root,destination,resume=False):
     ''')
     complete=db.execute("SELECT value FROM metadata WHERE k='complete'").fetchone()
     if complete:
-        db.close();return json.loads(complete[0])
+        metadata=json.loads(complete[0]);validate_relation_completion(root,metadata)
+        db.close();return metadata
     config=json.loads(Path('poi_config.json').read_text())
     class Relations(osmium.SimpleHandler):
         def relation(self,r):
@@ -135,8 +161,13 @@ def index_sources(root,destination,resume=False):
             db.execute('INSERT OR IGNORE INTO relations VALUES(?,?,?,?)',
                        (r.id,r.version,json.dumps([(m.type,m.ref) for m in r.members]),int(bool(allowed_poi(tags,config) and permitted(tags)))))
     h=Relations()
-    for r in records:h.apply_file(str(root/r['path']))
-    db.commit()
+    for r in records:
+        key='relations:'+r['path']
+        if db.execute('SELECT 1 FROM metadata WHERE k=?',(key,)).fetchone():continue
+        phase=time.monotonic()
+        with osmium.io.Reader(str(root/r['path']),osmium.osm.RELATION) as reader:osmium.apply(reader,h)
+        db.execute('INSERT INTO metadata VALUES(?,?)',(key,r['sha256']));db.commit()
+        print(json.dumps({'relations_source':r['path'],'seconds':time.monotonic()-phase}),flush=True)
     # Only POI roots and their nested children are needed in memory. Keeping
     # every route/boundary relation inflates 31 MB of JSON into hundreds of MB
     # of Python objects on these six extracts.
@@ -180,6 +211,7 @@ def index_sources(root,destination,resume=False):
             if self.seen_ways%100000==0:
                 print(json.dumps({'source':self.source_name,'scanned_ways':self.seen_ways,
                                   'location_index_bytes':locations.used_memory(),
+                                  'location_cache':locations.stats() if coordinate_backend=='paged' else None,
                                   'seconds':round(time.monotonic()-started,1)}),flush=True)
             tags=dict(w.tags);key=f'w{w.id}'
             ispoi=allowed_poi(tags,config) and permitted(tags)
@@ -189,9 +221,13 @@ def index_sources(root,destination,resume=False):
             if old:
                 if old[0]!=w.version:raise ValueError('Conflicting OSM versions across source extracts')
                 return
-            if any(not n.location.valid() for n in w.nodes):
-                raise ValueError(f'Incomplete way geometry: {w.id}')
-            lon=np.array([n.lon for n in w.nodes]);lat=np.array([n.lat for n in w.nodes])
+            refs=[n.ref for n in w.nodes]
+            if coordinate_backend=='paged':
+                try:lon,lat=locations.lookup(refs)
+                except KeyError as error:raise ValueError(f'Incomplete way geometry: {w.id}') from error
+            else:
+                if any(not n.location.valid() for n in w.nodes):raise ValueError(f'Incomplete way geometry: {w.id}')
+                lon=np.array([n.lon for n in w.nodes]);lat=np.array([n.lat for n in w.nodes])
             if not len(lon):return
             if key in needed:
                 db.execute('INSERT OR IGNORE INTO member_bounds VALUES(?,?,?,?,?)',(key,float(lon.min()),float(lat.min()),float(lon.max()),float(lat.max())))
@@ -201,7 +237,6 @@ def index_sources(root,destination,resume=False):
             if ispoi:
                 store_poi(key,representative({'type':'way','geometry':[{'lon':a,'lat':b} for a,b in zip(lon,lat)]}))
             if not iswalk:return
-            refs=[n.ref for n in w.nodes]
             for i,(a,b) in enumerate(zip(refs,refs[1:])):
                 if a==b or db.execute('SELECT 1 FROM blocked WHERE id IN (?,?) LIMIT 1',(a,b)).fetchone():continue
                 pa,pb=xy[i],xy[i+1];length=float(np.linalg.norm(pb-pa))
@@ -219,32 +254,46 @@ def index_sources(root,destination,resume=False):
         checkpoint_key='file:'+r['path']
         if db.execute('SELECT 1 FROM metadata WHERE k=?',(checkpoint_key,)).fetchone():
             print(json.dumps({'reused_source':r['path']}),flush=True);continue
+        file_started=time.monotonic()
         print(json.dumps({'importing':r['path'],'seconds':round(time.monotonic()-started,1)}),flush=True)
         handler.source_name=r['path']
         # Preserve untagged nodes referenced by POI relations, then use a native
         # tag filter to keep millions of unrelated nodes out of Python callbacks.
-        if needed_nodes:
+        if needed_nodes and coordinate_backend=='native':
             with osmium.io.Reader(str(root/r['path']),osmium.osm.NODE) as reader:
                 osmium.apply(reader,osmium.filter.IdFilter(needed_nodes),handler)
         # Never reopen an interrupted sparse-array index: old entries would be
         # appended to the next stream and could invalidate its sorted lookup.
-        cache=destination.parent/f'{destination.stem}.{uuid.uuid4().hex}.locations'
-        locations=osmium.index.create_map(f'sparse_file_array,{cache}')
-        location_handler=osmium.NodeLocationsForWays(locations)
         node_filter=osmium.filter.KeyFilter('barrier',*config['allow']).enable_for(osmium.osm.NODE)
-        with osmium.io.Reader(str(root/r['path'])) as reader:
-            osmium.apply(reader,location_handler,node_filter,handler)
-        del location_handler
-        locations.clear()
+        if coordinate_backend=='paged':
+            from pilot.locations import build_index
+            locations=build_index(root/r['path'],root/'node-locations',r['sha256'])
+            # Required untagged relation nodes use the same exact bounded
+            # coordinate lookup, with no global-ID bitset or extra native scan.
+            keys=np.array(sorted(needed_nodes),dtype=np.int64);ticks,found=locations.ticks(keys,allow_missing=True)
+            xy=ticks[found].astype(np.float64)/10000000.0
+            db.executemany('INSERT OR IGNORE INTO member_bounds VALUES(?,?,?,?,?)',
+                [(f'n{int(nid)}',float(x),float(y),float(x),float(y)) for nid,(x,y) in zip(keys[found],xy)])
+            with osmium.io.Reader(str(root/r['path'])) as reader:osmium.apply(reader,node_filter,handler)
+            print(json.dumps({'source':r['path'],'coordinate_cache':locations.stats()}),flush=True)
+            locations.close();cache=None
+        else:
+            cache=destination.parent/f'{destination.stem}.{uuid.uuid4().hex}.locations'
+            locations=osmium.index.create_map(f'sparse_file_array,{cache}')
+            location_handler=osmium.NodeLocationsForWays(locations)
+            with osmium.io.Reader(str(root/r['path'])) as reader:osmium.apply(reader,location_handler,node_filter,handler)
+            del location_handler
+            locations.clear()
         del locations
         gc.collect()
         db.execute('INSERT INTO metadata VALUES(?,?)',(checkpoint_key,r['sha256']))
         db.commit()
         # Only the temporary location index created by this invocation.
-        if cache.exists():
+        if cache is not None and cache.exists():
             try:cache.unlink()
             except PermissionError:pass  # Windows may retain a mapped-file handle until process exit.
-        print(json.dumps({'imported':r['path'],'seconds':round(time.monotonic()-started,1)}),flush=True)
+        print(json.dumps({'imported':r['path'],'seconds':round(time.monotonic()-started,1),
+                         'file_seconds':time.monotonic()-file_started,'sqlite_bytes':destination.stat().st_size}),flush=True)
     memo={};unresolved=[]
     def relation_bounds(rid,stack=()):
         if rid in memo:return memo[rid]
@@ -286,12 +335,34 @@ def index_sources(root,destination,resume=False):
     return meta
 
 
+def validate_relation_completion(root,metadata):
+    proof=metadata.get('relation_completion')
+    if not proof:return
+    root=Path(root).resolve();path=(root/proof['report']).resolve()
+    if path.parent!=root or hashlib.sha256(path.read_bytes()).hexdigest()!=proof['sha256']:
+        raise ValueError('Relation completion proof changed')
+    report=json.loads(path.read_text());extract=(root/report['extract']).resolve()
+    if extract.parent!=root:raise ValueError('Invalid relation extract path')
+    with extract.open('rb') as stream:
+        if hashlib.file_digest(stream,'sha256').hexdigest()!=report['extract_sha256']:raise ValueError('Relation extract changed')
+    if report['import_identity']!=import_identity(root) or report['timestamp']!=metadata['osm_timestamp']:
+        raise ValueError('Relation completion source changed')
+    if set(report['unresolved_before'])!=set(proof['resolved_relations']) or set(r['id'] for r in report['roots'])!=set(proof['resolved_relations']):
+        raise ValueError('Relation completion set differs')
+    if not all(r['complete_geometry_outside_support'] for r in report['roots']):raise ValueError('Unverified relation exclusion')
+
+
 class SpatialSource:
     def __init__(self,path):
         self.db=connect(path)
         row=self.db.execute("SELECT value FROM metadata WHERE k='complete'").fetchone()
-        if not row:raise ValueError('Incomplete source index')
-        self.metadata=json.loads(row[0])
+        try:
+            if not row:raise ValueError('Incomplete source index')
+            self.metadata=json.loads(row[0])
+            if self.metadata['unresolved_relation_ids']:raise ValueError('Unresolved relation geometry blocks scoring')
+            validate_relation_completion(Path(path).parent,self.metadata)
+        except Exception:
+            self.db.close();raise
         self.db.execute('CREATE TEMP TABLE selected(id INTEGER PRIMARY KEY)')
 
     def load(self,bounds,max_nodes=150000,max_pois=20000):

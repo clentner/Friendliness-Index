@@ -15,23 +15,32 @@ async function settle(page){
 (async()=>{
  await fs.mkdir(out,{recursive:true});
  const productionRoot=process.env.PMTILES_PRODUCTION_ROOT;
+ const sourceRoot=process.env.PMTILES_SOURCE_ROOT;
+ const archive=process.env.PMTILES_ARCHIVE;
  const productionManifest=productionRoot?JSON.parse(await fs.readFile(path.join(productionRoot,'manifest.json'),'utf8')):null;
- const deployment=productionRoot?JSON.parse(await fs.readFile('deploy/ma-archive.json','utf8')):null;
- if(productionRoot)assert.equal(productionManifest.archive_url,deployment.archive_url);
- const preview=await createPreview({productionRoot});
+ const deployment=productionRoot?JSON.parse(await fs.readFile(process.env.PMTILES_CONFIG||'deploy/ma-archive.json','utf8')):null;
+ const archiveConfig=deployment?.archive_parts|| (deployment?[deployment]:[]);
+ if(productionRoot){
+  if(deployment.archive_parts)assert.deepEqual(productionManifest.archive_parts,deployment.archive_parts.map(({archive_file,...part})=>part));
+  else assert.equal(productionManifest.archive_url,deployment.archive_url);
+ }
+ const archives=deployment?.archive_parts?.map(part=>path.resolve('build/archives',part.archive_file));
+ const preview=await createPreview({productionRoot,root:sourceRoot,archive,archives});
  await new Promise(resolve=>preview.server.listen(0,'127.0.0.1',resolve));
  const origin=`http://127.0.0.1:${preview.server.address().port}`;
- const archiveUrl=origin+'/data/'+preview.archiveName;
  const checks=[];
+ for(const item of preview.archives){
+ const archiveUrl=origin+'/data/'+item.archiveName;
  for(const [range,status,length] of [['bytes=0-126',206,127],['bytes=-8',206,8],
-  [`bytes=${preview.archiveSize-8}-`,206,8],[`bytes=${preview.archiveSize}-`,416,0],['bytes=0-1,4-5',416,0]]){
+  [`bytes=${item.archiveSize-8}-`,206,8],[`bytes=${item.archiveSize}-`,416,0],['bytes=0-1,4-5',416,0]]){
   const response=await fetch(archiveUrl,{headers:{Range:range}});
   assert.equal(response.status,status);assert.equal((await response.arrayBuffer()).byteLength,length);
   if(status===206){assert.equal(response.headers.get('accept-ranges'),'bytes');assert.match(response.headers.get('content-range'),/^bytes \d+-\d+\/\d+$/)}
-  checks.push({range,status,length});
+  checks.push({archive:item.archiveName,range,status,length});
  }
  const full=await fetch(archiveUrl);assert.equal(full.status,400);await full.text();
- const head=await fetch(archiveUrl,{method:'HEAD'});assert.equal(head.status,200);assert.equal(Number(head.headers.get('content-length')),preview.archiveSize);
+ const head=await fetch(archiveUrl,{method:'HEAD'});assert.equal(head.status,200);assert.equal(Number(head.headers.get('content-length')),item.archiveSize);
+ }
  const browser=await chromium.launch({channel:'msedge',headless:true});
  const runs=[];
  try{
@@ -40,13 +49,13 @@ async function settle(page){
     const context=await browser.newContext({viewport});
     // Exercise the exact production URL/configuration using a local range
     // endpoint. This intentionally does not claim live TLS/CORS/CDN verification.
-    if(productionRoot&&mode==='archive')await context.route(productionManifest.archive_url,async route=>{
-     const response=await route.fetch({url:archiveUrl});
+    if(productionRoot&&mode==='archive')for(let i=0;i<archiveConfig.length;i++)await context.route(archiveConfig[i].archive_url,async route=>{
+     const response=await route.fetch({url:origin+'/data/'+preview.archives[i].archiveName});
      await route.fulfill({response,headers:{...response.headers(),
       'access-control-allow-origin':origin,'access-control-expose-headers':'ETag, Content-Range, Accept-Ranges, Content-Length'}});
     });
     const page=await context.newPage();const errors=[],failed=[],external=[];
-    page.on('request',request=>{if(new URL(request.url()).origin!==origin&&request.url()!==productionManifest?.archive_url)external.push(request.url())});
+    page.on('request',request=>{if(new URL(request.url()).origin!==origin&&!archiveConfig.some(part=>part.archive_url===request.url()))external.push(request.url())});
     page.on('pageerror',error=>errors.push(error.message));
     page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
     page.on('response',response=>{if(response.status()>=400)failed.push({url:response.url(),status:response.status()})});
@@ -60,14 +69,39 @@ async function settle(page){
      const records=preview.requests.slice(previousIndex),finished=records.filter(r=>r.finished);
      const raster=finished.filter(r=>r.path.startsWith('/data/')||r.path.endsWith('.png'));
      const value={name,requests:records.length,completed:finished.length,bodyBytes:finished.reduce((n,r)=>n+r.bytes,0),
-      rasterRequests:raster.length,rasterBytes:raster.reduce((n,r)=>n+r.bytes,0),encodedBytes:encodedBytes-previousEncoded};
+      rasterRequests:raster.length,rasterBytes:raster.reduce((n,r)=>n+r.bytes,0),encodedBytes:encodedBytes-previousEncoded,
+      archiveObjects:[...new Set(raster.filter(r=>r.path.startsWith('/data/')).map(r=>path.basename(r.path)))]};
      stages.push(value);previousIndex=preview.requests.length;previousEncoded=encodedBytes;
     }
     await page.goto(`${origin}/${mode}/?offline=1`);await settle(page);
     const initialLoadMs=Date.now()-started;snapshot('cold-state-overview');
     assert.ok(stages[0].rasterRequests>0);
     await page.screenshot({path:path.join(out,`${mode}-${viewport.width}-overview.png`)});
-    const places=[['Boston',[-71.06,42.356],true],['Pittsfield',[-73.245,42.451],true],
+    let transitionViews=0,overviewFraming=null;
+    if(preview.manifest.area_label==='New York State'){
+     overviewFraming=await page.evaluate(()=>{
+      const {map,manifest}=window.pilotQA,[w,s,e,n]=manifest.bbox;
+      return {zoom:map.getZoom(),corners:[[w,s],[w,n],[e,s],[e,n]].map(p=>map.project(p))};
+     });
+     for(const p of overviewFraming.corners)assert.ok(p.x>=23&&p.x<=viewport.width-51&&p.y>=71&&p.y<=viewport.height-39,'Full NY overview clipped');
+     for(const [name,zoom,partId] of [['overview-boundary',11.49,'overview'],['detail-boundary',11.51,'detail']]){
+      await page.evaluate(zoom=>window.pilotQA.map.jumpTo({center:[-73.985,40.758],zoom}),zoom);await settle(page);
+      snapshot(name);await page.screenshot({path:path.join(out,`${mode}-${viewport.width}-${name}.png`)});transitionViews++;
+      if(mode==='archive'&&deployment?.archive_parts){
+       const part=deployment.archive_parts.find(p=>p.id===partId);
+       assert.ok(stages.at(-1).archiveObjects.includes(part.archive_file),`${name}: expected archive not requested`);
+      }
+     }
+    }
+    const places=preview.manifest.area_label==='New York State'
+     ? [['Midtown',[-73.985,40.758],true],['Brooklyn',[-73.96,40.715],true],
+        ['Queens',[-73.83,40.76],true],['Bronx',[-73.92,40.84],true],['Staten-Island',[-74.15,40.58],true],
+        ['Hempstead',[-73.62,40.706],true],['Montauk',[-71.94,41.035],true],['Fishers-Island',[-72.018,41.263],true],
+        ['Albany',[-73.756,42.65],true],['Buffalo',[-78.878,42.886],true],['Rochester',[-77.61,43.156],true],
+        ['Syracuse',[-76.148,43.05],true],['Adirondacks',[-74.3,44.0],true],['Thousand-Islands',[-75.92,44.33],true],
+        ['Rouses-Point',[-73.36,44.99],true],['Jersey-City',[-74.07,40.73],false],
+        ['Toronto',[-79.38,43.65],false],['Pittsfield-MA',[-73.245,42.451],false]]
+     : [['Boston',[-71.06,42.356],true],['Pittsfield',[-73.245,42.451],true],
      ['Nantucket',[-70.099,41.284],true],['Vineyard-Haven',[-70.602,41.456],true],
      ['Cuttyhunk',[-70.928,41.424],true],['Hartford',[-72.67,41.76],false],
      ['Providence',[-71.4128,41.824],false],['Nashua',[-71.4666,42.7654],false],
@@ -89,12 +123,15 @@ async function settle(page){
      manifestListsTiles:!!window.pilotQA.manifest.available_tiles}));
     assert.equal(ui.overflow,false);assert.equal(ui.blurb,false);assert.ok(ui.compact);assert.match(ui.attribution,/OSM/);
     assert.equal(ui.manifestListsTiles,mode==='loose');
-    if(productionRoot&&mode==='archive')assert.equal(await page.evaluate(()=>window.pilotQA.manifest.archive_url),deployment.archive_url);
+    if(productionRoot&&mode==='archive'){
+     if(deployment.archive_parts)assert.deepEqual(await page.evaluate(()=>window.pilotQA.manifest.archive_parts),productionManifest.archive_parts);
+     else assert.equal(await page.evaluate(()=>window.pilotQA.manifest.archive_url),deployment.archive_url);
+    }
     const records=preview.requests.slice(startIndex),ranges=records.filter(r=>r.path.startsWith('/data/'));
     if(mode==='archive')assert.ok(ranges.length>0&&ranges.every(r=>r.status===206&&r.range));
     assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);assert.deepEqual(external,[]);
     const run={mode,viewport,initialLoadMs,stages,ui,errors,failed,completedResponses,encodedBytes,
-     productionConfiguration:!!productionRoot,liveEndpointVerified:false,
+     productionConfiguration:!!productionRoot,liveEndpointVerified:false,views:places.length+1+transitionViews,overviewFraming,
      totalRequests:records.length,totalBodyBytes:records.reduce((n,r)=>n+r.bytes,0),
      archiveRangeRequests:ranges.length,maxRangeBytes:Math.max(0,...ranges.map(r=>r.bytes)),
      archiveResponseBytes:ranges.reduce((n,r)=>n+r.bytes,0)};

@@ -1,0 +1,27 @@
+{
+  "dataset": "b42279c259905289",
+  "archive_layout": "zoom-partitions-v1",
+  "archive_bytes_total": 561142478,
+  "archive_parts": [
+    {
+      "id": "overview",
+      "minzoom": 5,
+      "maxzoom": 12,
+      "archive_file": "new-york-b42279c259905289-overview.pmtiles",
+      "archive_bytes": 208457279,
+      "archive_sha256": "e25d3229b7a6389736b96990f92d6deaeb0f9e2c8a97e4880106d0c1d32ac30e",
+      "archive_url": "https://tiles.chrislentner.com/ny/b42279c259905289/e25d3229b7a63897-overview.pmtiles"
+    },
+    {
+      "id": "detail",
+      "minzoom": 13,
+      "maxzoom": 14,
+      "archive_file": "new-york-b42279c259905289-detail.pmtiles",
+      "archive_bytes": 352685199,
+      "archive_sha256": "0bd72787e5d19e51520ea0f056a8d56131b8d5f521efe7c78058aa053e32c307",
+      "archive_url": "https://tiles.chrislentner.com/ny/b42279c259905289/0bd72787e5d19e51-detail.pmtiles"
+    }
+  ],
+  "website_origin": "https://maps.chrislentner.com",
+  "pages_origin": "https://friendliness-index.pages.dev"
+}

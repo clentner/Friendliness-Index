@@ -23,6 +23,36 @@ try {
   if (!response.ok) throw new Error('Dataset manifest unavailable');
   const manifest = await response.json();
   const archiveUrl = manifest.archive_url ? new URL(manifest.archive_url,location.href).href : null;
+  const archiveParts = manifest.archive_parts || null;
+  if (archiveParts) {
+    if (archiveUrl || manifest.archive_layout !== 'zoom-partitions-v1' || !globalThis.pmtiles?.PMTiles)
+      throw new Error('Unsupported archive configuration');
+    let nextZoom=manifest.minzoom;
+    const readers=archiveParts.map(part=>{
+      if (part.minzoom!==nextZoom || !Number.isInteger(part.maxzoom) || part.maxzoom<part.minzoom)
+        throw new Error('Archive zoom coverage is incomplete');
+      nextZoom=part.maxzoom+1;
+      return {...part,reader:new pmtiles.PMTiles(new URL(part.archive_url,location.href).href)};
+    });
+    if(nextZoom!==manifest.maxzoom+1)throw new Error('Archive zoom coverage is incomplete');
+    let transparentTile;
+    maplibregl.addProtocol('friendliness',async (params,abortController)=>{
+      const coordinates=/\/(\d+)\/(\d+)\/(\d+)\.png$/.exec(params.url);
+      if(!coordinates)throw new Error('Invalid raster tile address');
+      const [z,x,y]=coordinates.slice(1).map(Number);
+      const part=readers.find(p=>z>=p.minzoom&&z<=p.maxzoom);
+      if(!part)throw new Error('Raster zoom is outside the archive partition');
+      const tile=await part.reader.getZxy(z,x,y,abortController.signal);
+      abortController.signal.throwIfAborted();
+      if(tile)return {...tile,data:new Uint8Array(tile.data)};
+      transparentTile??=fetch(new URL('transparent.png',location.href)).then(response=>{
+        if(!response.ok)throw new Error('Transparent fallback unavailable');
+        return response.arrayBuffer();
+      });
+      const data=await transparentTile;abortController.signal.throwIfAborted();
+      return {data:new Uint8Array(data)};
+    });
+  }
   if (archiveUrl) {
     if (!globalThis.pmtiles?.Protocol) throw new Error('Archive reader unavailable');
     const protocol = new pmtiles.Protocol();
@@ -68,7 +98,7 @@ try {
   const layers = [{id:'background',type:'background',paint:{'background-color':'#e9efed'}}];
   if (!offline) layers.push({id:'base',type:'raster',source:'base',paint:{'raster-saturation':-.8,'raster-opacity':.8}});
   const map = new maplibregl.Map({container:'map',style:{version:8,sources,layers},
-    bounds,fitBoundsOptions:{padding:overviewPadding()},maxZoom:18,minZoom:manifest.area_label ? 5 : 7,
+    bounds,fitBoundsOptions:{padding:overviewPadding()},maxZoom:18,minZoom:manifest.min_view_zoom ?? (manifest.area_label ? 5 : 7),
     maxTileCacheSize:80,refreshExpiredTiles:false,attributionControl:true,
     transformRequest:(url)=>{
       // The manifest enumerates published raster tiles. Absent tiles are
@@ -88,9 +118,11 @@ try {
   if (manifest.area_label) fitCoverage(0);
   map.addControl(new maplibregl.NavigationControl(),'top-right');
   map.on('load',()=>{
-    map.addSource('scores',{type:'raster',...(archiveUrl
+    map.addSource('scores',{type:'raster',...(archiveParts
+      ? {tiles:[`friendliness://${manifest.dataset}/{z}/{x}/{y}.png`]}
+      : archiveUrl
       ? {url:'pmtiles://'+archiveUrl}
-      : {tiles:[new URL(manifest.tile_url,location.href).href]}),
+      : {tiles:[new URL('.',location.href).href+manifest.tile_url]}),
       tileSize:256,minzoom:manifest.minzoom,maxzoom:manifest.maxzoom,bounds:manifest.bbox,
       attribution:'Friendliness Index · © <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors · <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>'});
     map.addLayer({id:'scores',type:'raster',source:'scores',paint:{'raster-opacity':.8,'raster-resampling':'nearest','raster-fade-duration':150}});

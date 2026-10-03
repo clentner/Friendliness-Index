@@ -4,12 +4,18 @@ import os
 from pathlib import Path
 import sqlite3
 import time
+import argparse
 for name in ['OSMIUM_POOL_THREADS','OSMIUM_MAX_INPUT_QUEUE_SIZE','OSMIUM_MAX_OSMDATA_QUEUE_SIZE','OSMIUM_MAX_WORK_QUEUE_SIZE']:
     os.environ.setdefault(name,'2')
 import osmium
 from pilot.source import allowed_poi,permitted
 
-started=time.monotonic();root=Path('data/ma-20261001');config=json.loads(Path('poi_config.json').read_text())
+parser=argparse.ArgumentParser()
+parser.add_argument('--root',type=Path,default=Path('data/ma-20261001'))
+parser.add_argument('--run',type=Path,default=Path('build/ma-run'))
+parser.add_argument('--report',type=Path,default=Path('qa-artifacts/region-access-audit.json'))
+args=parser.parse_args()
+started=time.monotonic();root=args.root;config=json.loads(Path('poi_config.json').read_text())
 db=sqlite3.connect(root/'source.sqlite');candidates=set();affected=set()
 class Audit(osmium.SimpleHandler):
     def node(self,n):
@@ -24,7 +30,7 @@ for record in json.loads((root/'sources.json').read_text()):
         osmium.apply(reader,osmium.filter.KeyFilter(*config['allow']),handler)
     print(json.dumps({'audited':record['path'],'candidates':len(candidates),'retained_graph_matches':len(affected)}),flush=True)
 report={'candidate_private_nodes_filtered_by_poi_deny':len(candidates),'retained_graph_node_ids':sorted(affected),
-        'run_signature':json.loads(Path('build/ma-run/run.json').read_text())['signature'],
+        'run_signature':json.loads((args.run/'run.json').read_text())['signature'],
         'seconds':time.monotonic()-started}
-Path('qa-artifacts/region-access-audit.json').write_text(json.dumps(report,indent=2))
+args.report.write_text(json.dumps(report,indent=2))
 print(json.dumps(report));assert not affected,'Legacy acquisition/access edge case affects retained graph; source repair required'

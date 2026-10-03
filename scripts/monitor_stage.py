@@ -5,6 +5,7 @@ from ctypes import wintypes
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import time
 
@@ -14,17 +15,34 @@ class Memory(ctypes.Structure):
 class Counters(ctypes.Structure):
     _fields_=[('cb',wintypes.DWORD),('faults',wintypes.DWORD)]+[(n,ctypes.c_size_t) for n in ['peak','working','peak_paged','paged','peak_nonpaged','nonpaged','pagefile','peak_pagefile']]
 
+class IoCounters(ctypes.Structure):
+    _fields_=[(n,ctypes.c_ulonglong) for n in ['read_operations','write_operations','other_operations','read_bytes','write_bytes','other_bytes']]
+
+def atomic_status(path,status):
+    temporary=path.with_suffix(path.suffix+'.tmp')
+    temporary.write_text(json.dumps(status,indent=2))
+    for attempt in range(5):
+        try:temporary.replace(path);return
+        except PermissionError:
+            if attempt==4:raise
+            time.sleep(.05)
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--log',required=True)
     parser.add_argument('--seconds',type=int,default=1800)
     parser.add_argument('--memory-mib',type=int,default=1100)
+    parser.add_argument('--disk-root',default='.')
+    parser.add_argument('--free-disk-gib',type=float,default=20)
     parser.add_argument('command',nargs=argparse.REMAINDER)
     args=parser.parse_args();log=Path(args.log);log.parent.mkdir(parents=True,exist_ok=True)
     get_memory=ctypes.windll.psapi.GetProcessMemoryInfo
     get_memory.argtypes=[wintypes.HANDLE,ctypes.POINTER(Counters),wintypes.DWORD]
     get_memory.restype=wintypes.BOOL
+    get_io=ctypes.windll.kernel32.GetProcessIoCounters
+    get_io.argtypes=[wintypes.HANDLE,ctypes.POINTER(IoCounters)];get_io.restype=wintypes.BOOL
     started=time.monotonic();peak=0;minimum_available=2**64;reason=None
+    initial_disk_free=shutil.disk_usage(args.disk_root).free;minimum_disk_free=initial_disk_free
     with log.open('w',encoding='utf-8') as output:
         child=subprocess.Popen(args.command,stdout=output,stderr=subprocess.STDOUT)
         while child.poll() is None:
@@ -33,16 +51,31 @@ def main():
             counters=Counters();counters.cb=ctypes.sizeof(counters)
             if get_memory(int(child._handle),ctypes.byref(counters),ctypes.sizeof(counters)):peak=max(peak,counters.peak)
             minimum_available=min(minimum_available,memory.available_phys)
+            disk_free=shutil.disk_usage(args.disk_root).free
+            minimum_disk_free=min(minimum_disk_free,disk_free)
             if time.monotonic()-started>args.seconds:reason='Wall-clock budget exceeded'
             if peak>args.memory_mib*1024**2:reason='Working-set budget exceeded'
             if memory.available_phys<384*1024**2:reason='System available RAM below 384 MiB'
+            if disk_free<args.free_disk_gib*1024**3:reason='Disk headroom budget exceeded'
             status={'pid':child.pid,'seconds':round(time.monotonic()-started,2),'peak_working_set_bytes':peak,
-                    'minimum_available_ram_bytes':minimum_available,'stopped_reason':reason}
-            log.with_suffix('.resources.json').write_text(json.dumps(status,indent=2))
+                    'working_set_bytes':counters.working,'private_commit_bytes':counters.pagefile,
+                    'peak_private_commit_bytes':counters.peak_pagefile,'page_faults':counters.faults,
+                    'minimum_available_ram_bytes':minimum_available,'stopped_reason':reason,
+                    'initial_disk_free_bytes':initial_disk_free,'minimum_disk_free_bytes':minimum_disk_free,
+                    'current_disk_free_bytes':disk_free,'disk_growth_bytes':initial_disk_free-disk_free}
+            io=IoCounters()
+            if get_io(int(child._handle),ctypes.byref(io)):status['process_io']={name:getattr(io,name) for name,_ in IoCounters._fields_}
+            atomic_status(log.with_suffix('.resources.json'),status)
             if reason:child.terminate();child.wait(timeout=10);break
             time.sleep(1)
     status['exit_code']=child.returncode
-    log.with_suffix('.resources.json').write_text(json.dumps(status,indent=2))
+    status['seconds']=round(time.monotonic()-started,2)
+    counters=Counters();counters.cb=ctypes.sizeof(counters)
+    if get_memory(int(child._handle),ctypes.byref(counters),ctypes.sizeof(counters)):
+        status['peak_working_set_bytes']=max(peak,counters.peak)
+    io=IoCounters()
+    if get_io(int(child._handle),ctypes.byref(io)):status['process_io']={name:getattr(io,name) for name,_ in IoCounters._fields_}
+    atomic_status(log.with_suffix('.resources.json'),status)
     print(json.dumps(status));return child.returncode or (1 if reason else 0)
 
 if __name__=='__main__':sys.exit(main())

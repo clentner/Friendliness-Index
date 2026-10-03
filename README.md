@@ -10,9 +10,13 @@ preserved. Nothing is deployed by the pilot commands.
 
 The separate [Massachusetts expansion](docs/MASSACHUSETTS.md) covers the full
 state, including islands and cross-border walking context, with resumable
-preprocessing and measured desktop/mobile viewport checks. Its local build is
-unpublished. [National sizing](docs/NATIONAL-SIZING.md) records the measured
-Massachusetts file breakdown and rough US storage and packaging scenarios.
+preprocessing and measured desktop/mobile viewport checks. Its archive-backed
+production release is documented in [the cutover record](deploy/MA-ARCHIVE-CUTOVER.md).
+The [New York expansion](docs/NEW-YORK.md) covers the complete state with the
+same metric, bounded import/export memory and cacheable archive partitions.
+NY publication requires approval of [the measured hosting plan](deploy/NY-EXPANSION.md).
+[National sizing](docs/NATIONAL-SIZING.md) records measured MA/NY bottlenecks
+and rough US storage and packaging scenarios.
 
 Generates a heatmap, e.g. greater Boston area:
 

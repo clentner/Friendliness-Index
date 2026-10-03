@@ -1,0 +1,4 @@
+.region-navigation{position:absolute;left:12px;bottom:36px;display:flex;align-items:center;gap:4px;padding:4px;background:#fffdf8f5;border:1px solid #dce3da;border-radius:9px;box-shadow:0 2px 8px #173c3920;font-size:12px;max-width:calc(100% - 24px)}
+.region-navigation a{padding:9px 10px;border-radius:6px;color:#225e50;text-decoration:none;white-space:nowrap}
+.region-navigation a[aria-current="page"]{background:#224c40;color:#fff}
+.region-navigation a:focus-visible{outline:3px solid #b26b25;outline-offset:2px}

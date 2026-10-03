@@ -15,12 +15,18 @@ async function createPreview(options={}){
  const root=path.resolve(options.root||'build/massachusetts');
  const productionRoot=options.productionRoot?path.resolve(options.productionRoot):null;
  const manifest=JSON.parse(await fsp.readFile(path.join(root,'manifest.json'),'utf8'));
- const archive=path.resolve(options.archive||`build/archives/massachusetts-${manifest.dataset}.pmtiles`);
- const archiveName=path.basename(archive),archiveSize=(await fsp.stat(archive)).size;
+ const archives=await Promise.all((options.archives||[options.archive||`build/archives/massachusetts-${manifest.dataset}.pmtiles`]).map(async name=>{
+  const file=path.resolve(name);return {archive:file,archiveName:path.basename(file),archiveSize:(await fsp.stat(file)).size};
+ }));
+ if(archives.length>1&&!productionRoot)throw Error('Multipart preview requires the exact staged production bundle');
+ const {archive,archiveName,archiveSize}=archives[0];
+ const archivePaths=new Map(archives.map(item=>['/data/'+item.archiveName,item]));
  const sdkRoot=path.resolve('.tools/pmtiles/js/node_modules/pmtiles');
  const sdkVersion=JSON.parse(await fsp.readFile(path.join(sdkRoot,'package.json'),'utf8')).version;
  if(sdkVersion!=='4.5.0')throw Error('Expected pmtiles 4.5.0');
  let app=await fsp.readFile(path.join(root,'app.js'),'utf8');
+ const nativeArchive=app.includes('const archiveUrl =');
+ if(!nativeArchive){
  app=replaceOnce(app,"const status =", `const protocol = new pmtiles.Protocol();
 // This MapLibre version leaves missing raster data=null tiles pending. Use the
 // same transparent PNG as the loose-tile viewer, without an availability list.
@@ -41,8 +47,9 @@ maplibregl.addProtocol('pmtiles',async (params,abortController)=>{
 const status =`);
  app=replaceOnce(app,"tiles:[new URL('.',location.href).href+manifest.tile_url]",
   `url:'pmtiles://'+new URL('/data/${archiveName}',location.href).href`);
+ }
  let html=await fsp.readFile(path.join(root,'index.html'),'utf8');
- html=replaceOnce(html,'<script type="module" src="app.js">','<script src="vendor/pmtiles.js"></script><script type="module" src="app.js">');
+ if(!html.includes('src="vendor/pmtiles.js"'))html=replaceOnce(html,'<script type="module" src="app.js">','<script src="vendor/pmtiles.js"></script><script type="module" src="app.js">');
  const compact={...manifest};delete compact.available_tiles;delete compact.tile_url;
  compact.archive_url=`/data/${archiveName}`;
  const generated=new Map([['/archive/app.js',Buffer.from(app)],['/archive/index.html',Buffer.from(html)],
@@ -56,10 +63,10 @@ const status =`);
    let pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
    if(pathname==='/favicon.ico'){res.writeHead(204).end();return}
    if(pathname==='/'){res.writeHead(302,{Location:'/archive/?offline=1'}).end();return}
-   const isArchive=pathname===`/data/${archiveName}`;
+   const archiveItem=archivePaths.get(pathname),isArchive=!!archiveItem;
    if(pathname==='/loose/'||pathname==='/archive/')pathname+='index.html';
    let file,buffer=generated.get(pathname);
-   if(isArchive)file=archive;
+   if(isArchive)file=archiveItem.archive;
    else if(pathname==='/archive/vendor/pmtiles.js'&&!productionRoot)file=path.join(sdkRoot,'dist/pmtiles.js');
    else{
     const match=pathname.match(/^\/(loose|archive)\/(.+)$/);
@@ -94,7 +101,7 @@ const status =`);
    res.once('close',()=>stream.destroy());stream.on('error',()=>res.destroy());stream.pipe(res);
   }catch(error){if(!res.headersSent)res.writeHead(error.code==='ENOENT'?404:500);res.end()}
  });
- return {server,requests,archive,archiveName,archiveSize,manifest};
+ return {server,requests,archive,archiveName,archiveSize,archives,manifest};
 }
 module.exports={createPreview};
 if(require.main===module)createPreview().then(({server})=>server.listen(Number(process.argv[2]||8787),'127.0.0.1',()=>{

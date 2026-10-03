@@ -67,7 +67,7 @@ class RegionTests(unittest.TestCase):
             db.execute('INSERT INTO spatial SELECT id,x,x,y,y FROM vertices')
             pois=[(-500,10),(1995,5),(1995,5),(2800,10)]
             db.executemany('INSERT INTO pois VALUES(?,?,?)',[(str(i),*p) for i,p in enumerate(pois)])
-            db.execute('INSERT INTO metadata VALUES(?,?)',('complete',json.dumps({})));db.commit();db.close()
+            db.execute('INSERT INTO metadata VALUES(?,?)',('complete',json.dumps({'unresolved_relation_ids':[]})));db.commit();db.close()
             source=SpatialSource(path)
             global_graph,global_pois=source.load((-3000,-100,6000,100))
             queries=np.array([[x,0] for x in [0,25,1975,2000,2025,3975,4000]])

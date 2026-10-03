@@ -37,6 +37,7 @@ def main():
     root = args.export.resolve()
     manifest_bytes = (root / 'manifest.json').read_bytes()
     manifest = json.loads(manifest_bytes)
+    overview_only = manifest.get('archive_partition', {}).get('id') == 'overview' and manifest['maxzoom'] < 14
     keys = manifest['available_tiles']
     expected = set(keys)
     assert len(expected) == len(keys) == manifest['tiles']
@@ -98,11 +99,13 @@ def main():
             assert data == original, 'Byte mismatch: ' + key
             assert digest(data) == inventory[key]['sha256'], key
             seen.add(key)
-            if len(pixel_examples) < 2 and zxy[0] == manifest['maxzoom']:
+            if len(pixel_examples) < (1 if overview_only else 2) and zxy[0] == manifest['maxzoom']:
                 rgba = Image.open(io.BytesIO(data)).convert('RGBA')
                 pixels = list(rgba.getdata())
                 for kind, predicate in [('transparent', lambda p: p[3] == 0),
                                         ('zero_color_blue', lambda p: p == (34, 62, 92, 210))]:
+                    if overview_only and kind == 'zero_color_blue':
+                        continue  # Resampling need not retain exact native RGBA values.
                     if kind not in pixel_examples:
                         for i, pixel in enumerate(pixels):
                             if predicate(pixel):
@@ -116,7 +119,9 @@ def main():
             key = '/'.join(map(str, zxy))
             assert key not in expected and reader.get(*zxy) is None, key
             absent_checks.append({'place': name, 'tile': key})
-    assert len(pixel_examples) == 2, 'Missing transparency or zero-color evidence'
+    assert 'transparent' in pixel_examples, 'Missing transparency evidence'
+    if not overview_only:
+        assert 'zero_color_blue' in pixel_examples, 'Missing native zero-color evidence'
     assert (root / 'manifest.json').read_bytes() == manifest_bytes
     archive_bytes = temporary.stat().st_size
     with temporary.open('rb') as source:
@@ -130,6 +135,7 @@ def main():
         'verified_byte_for_byte': len(seen), 'metadata': metadata,
         'header': {k: v.value if hasattr(v, 'value') else v for k, v in stored_header.items()},
         'missing_tiles': absent_checks, 'pixel_examples': pixel_examples,
+        'native_zero_color_required': not overview_only,
         'build_seconds': round(built_seconds, 3), 'total_seconds': round(time.monotonic() - started, 3)}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2), encoding='utf-8')

@@ -82,6 +82,38 @@ The Massachusetts EPSG:32619 grid must not simply be stretched across the US.
 
 ## Fewer files with the same information
 
+### New York measured checkpoint (2026-10-03)
+
+The complete NY run now provides a second measured state, including NYC, Long
+Island, islands, remote roads and neighboring US/Canadian context. Its unchanged
+metric scored 36,267 jobs in 1,878.24 monitored seconds at 172.2 MiB peak RAM;
+the 53.0-minute base export peaked at 130.2 MiB. It produced 52,425 PNGs totaling
+560,884,874 bytes and 2,181 exact float32 parts totaling 892,416,000 bytes.
+All 50,866,538 finite cell centers have a finest-level display tile. These are
+observations of NY, not a new national extrapolation.
+
+Two additional mobile overview zooms add eight PNGs / 148,634 bytes. Packaging
+the full display set into z5–12 and z13–14 archives gives 208,457,279 and
+352,685,199 bytes respectively, each below the conservative 512,000,000-byte
+cache ceiling. All 52,433 archived PNG payloads match the source exactly in both
+Python and the independent JavaScript reader. Packaging took 55.12 seconds at
+107.8 MiB peak RAM. Zoom partitioning avoids geographic seams and serves a
+single raster source; actual browser transfer QA is recorded in `NEW-YORK.md`.
+
+The import bottleneck was Windows file-backed mapping residency: the native
+Ontario import exceeded a 1,100 MiB working-set guard. A bounded ordinary-file
+coordinate cache reduced a matched million-way probe from 821.3 to 98.3 MiB
+peak, at a lookup time cost (86.77 to 138.58 seconds). The resumed complete
+import peaked at 194.3 MiB. The export likewise uses bounded ordinary-file
+raster reads and resumable tile groups. Hashing tens of thousands of small
+files remains measurable: scoring-summary metadata reads took 276.61 seconds.
+Preserve these CPU/I/O/RAM tradeoffs when planning further states.
+
+A gzip trial reduced exact raw payloads to 57,146,547 bytes, but raw delivery
+remains the original uncompressed float32 format. A separately designed indexed
+compression format remains a potential storage improvement; no precision loss
+or unverified client format change was introduced for NY.
+
 Raster [PMTiles works with MapLibre](https://docs.protomaps.com/pmtiles/maplibre).
 It can place the same PNG payloads in indexed archives and fetch only the byte
 ranges needed for the current view. This changes delivery, not the score metric,
