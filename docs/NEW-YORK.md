@@ -1,3 +1,96 @@
+# Published continuous Massachusetts and New York map
+
+Verified on 2026-10-03 at 23:53:13 UTC. The continuous map is live on both
+[ maps.chrislentner.com ](https://maps.chrislentner.com) and
+[ friendliness-index.pages.dev ](https://friendliness-index.pages.dev).
+
+- Deployment source commit: `f869e788854a51d74645bb7b888a01b15ef9b650`.
+- Pages deployment: `b60a08f4-c3b8-4b9c-9ee2-33e3ac87842b`, production branch `main`,
+  immutable URL https://b60a08f4.friendliness-index.pages.dev.
+- Candidate: `build/ma-ny-continuous-ui300`; display identity `ead61093d03122c6`.
+- Pages: 2,734 inputs / 2,733 served assets / 1,074,013,041 uncompressed bytes.
+  Wrangler uploaded 2,296 new files, reused 437, and reported 267.48 seconds
+  for its upload phase. This is not a measured CLI network byte count.
+- NY R2 increment: three immutable objects / 561,145,019 bytes. Both detail
+  partitions are lossless, under the 300 MB browser cap. Original archives,
+  datasets, scores and rollback artifacts are preserved.
+
+## Public and live verification
+
+Full public sizes and SHA-256 hashes match all three prepared NY archives.
+Sampled range bytes match local files, with 206/Content-Range, stable ETag,
+CORS from both production origins and cache HIT. All six real browser runs
+(1440x900, 390x844, 320x568 on each origin) pass: 258 original float32/pyproj
+fixtures, 34 critical served-asset hash checks, Home framing, MA/NY seam pans,
+overview/z13/z14 transitions, one raster layer, lazy state routing, overlay,
+click popup, attribution and no errors/overflow. All 114 live/reference screen
+comparisons are pixel-identical. Two additional normal-basemap phone-sized views
+pass and the live phone framing/basemap screenshots were visually inspected.
+All 915 observed archive GETs use byte Range and return 206; map loading never
+fetches a whole archive. The separate full-object verification downloads are
+intentional QA and are not included in the range-only map claim.
+
+| Origin | Width | Cold ranges | Cold archive body bytes | Cold total CDP encoded bytes |
+| --- | ---: | ---: | ---: | ---: |
+| maps.chrislentner.com | 1440 | 11 | 387,318 | 1,000,377 |
+| maps.chrislentner.com | 390 | 3 | 20,910 | 447,766 |
+| maps.chrislentner.com | 320 | 3 | 20,910 | 447,747 |
+| friendliness-index.pages.dev | 1440 | 11 | 387,318 | 992,374 |
+| friendliness-index.pages.dev | 390 | 3 | 20,910 | 437,540 |
+| friendliness-index.pages.dev | 320 | 3 | 20,910 | 437,547 |
+
+Cold overview loads no raw blocks or NY detail. NYC detail requests no MA archive;
+Boston detail requests no NY archive. Home archive bodies are 344,667 bytes at
+1440 px and 4,526 bytes at each phone width. Largest observed range body:
+159,805 bytes. Full per-view transfers are in the deployment receipt. Range body
+counts use response Content-Length, including advertised lengths for responses;
+CDP encoded totals cover completed responses including frontend/headers. The
+browser report's `staticBytes` field sums advertised Content-Length only and
+excludes chunked text without that header. These observed local client/network
+measurements are not traffic forecasts, billed R2 operation counts or physical
+phone/cellular performance.
+
+The existing scoped archive cache rule includes `/ma/` and `/ny/`, with one-year
+Edge TTL confirmed by the upload operator. Observed Browser Cache-Control is
+`max-age=14400`; this differs from configured edge retention. Two pre-upload
+cached detail 404s were purged by exact URL using supported Computer Use, then
+both exact URLs and all publication checks passed. No bucket objects or MA cache
+entries were deleted; no new grants, credentials, services or DNS/security changes
+were made by this task.
+
+The streamed full-hash verifier temporarily used independently verified public
+address 104.21.50.250 because system DNS was intermittent, keeping hostname/SNI
+and TLS validation. All staged/live Chrome runs used normal DNS, TLS and CORS,
+without archive interception or address overrides.
+
+## Rollback and evidence
+
+Both existing rollback deployment manifests and sampled analytical payloads are
+byte-verified unchanged and publicly accessible:
+https://36133e09.friendliness-index.pages.dev (MA archive production), and
+https://3c407db9.friendliness-index.pages.dev (loose-PNG fallback).
+The MA source remains commit `0a3d795e6d4bb37f2b573dbdfc4947fc01e53e46`; its archive
+SHA-256 remains `876b2af034895c8abd6fbf9a957beca5e3e47b9954f316dd1f5407fd5409b2e7`.
+Frontend rollback does not require deleting the immutable NY objects.
+
+Evidence under `qa-artifacts/continuous/`: `deployment-receipt.json`,
+`public-endpoints-ui300.json`, `ui300-live/{results,pixel-comparison}.json`,
+`ui300-staged-public/{results,pixel-comparison}.json`, `rollback-receipt.json`,
+`final-package-audit-ui300.json`, `ui300-deploy.log` and `ui300-deployments.log`.
+The follow-up QA/documentation commit is separate from the deployed source commit.
+
+Reproduce live browser verification using the deployed source identity:
+
+```powershell
+$env:QA_COMMIT='f869e788854a51d74645bb7b888a01b15ef9b650'
+node scripts/continuous-live-qa.cjs
+```
+
+## Historical preparation and approval record
+
+The following preparation record is retained as history. Its pending statuses
+are superseded by the verified release above.
+
 # Approved lossless upload revision (300 MB browser limit)
 
 The active publication candidate is `build/ma-ny-continuous-ui300`, display identity
