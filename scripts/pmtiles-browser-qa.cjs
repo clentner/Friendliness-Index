@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const assert=require('node:assert/strict');
-const out=path.resolve('qa-artifacts/pmtiles/browser');
+const out=path.resolve(process.env.PMTILES_QA_OUTPUT||'qa-artifacts/pmtiles/browser');
 
 async function settle(page){
  await page.waitForFunction(()=>window.pilotQA?.map.isStyleLoaded()&&window.pilotQA.map.areTilesLoaded()&&!window.pilotQA.map.isMoving(),null,{timeout:60000});
@@ -14,7 +14,11 @@ async function settle(page){
 
 (async()=>{
  await fs.mkdir(out,{recursive:true});
- const preview=await createPreview();
+ const productionRoot=process.env.PMTILES_PRODUCTION_ROOT;
+ const productionManifest=productionRoot?JSON.parse(await fs.readFile(path.join(productionRoot,'manifest.json'),'utf8')):null;
+ const deployment=productionRoot?JSON.parse(await fs.readFile('deploy/ma-archive.json','utf8')):null;
+ if(productionRoot)assert.equal(productionManifest.archive_url,deployment.archive_url);
+ const preview=await createPreview({productionRoot});
  await new Promise(resolve=>preview.server.listen(0,'127.0.0.1',resolve));
  const origin=`http://127.0.0.1:${preview.server.address().port}`;
  const archiveUrl=origin+'/data/'+preview.archiveName;
@@ -34,8 +38,15 @@ async function settle(page){
   for(const viewport of [{width:1440,height:900},{width:390,height:844},{width:320,height:568}]){
    for(const mode of ['loose','archive']){
     const context=await browser.newContext({viewport});
+    // Exercise the exact production URL/configuration using a local range
+    // endpoint. This intentionally does not claim live TLS/CORS/CDN verification.
+    if(productionRoot&&mode==='archive')await context.route(productionManifest.archive_url,async route=>{
+     const response=await route.fetch({url:archiveUrl});
+     await route.fulfill({response,headers:{...response.headers(),
+      'access-control-allow-origin':origin,'access-control-expose-headers':'ETag, Content-Range, Accept-Ranges, Content-Length'}});
+    });
     const page=await context.newPage();const errors=[],failed=[],external=[];
-    page.on('request',request=>{if(new URL(request.url()).origin!==origin)external.push(request.url())});
+    page.on('request',request=>{if(new URL(request.url()).origin!==origin&&request.url()!==productionManifest?.archive_url)external.push(request.url())});
     page.on('pageerror',error=>errors.push(error.message));
     page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
     page.on('response',response=>{if(response.status()>=400)failed.push({url:response.url(),status:response.status()})});
@@ -78,10 +89,12 @@ async function settle(page){
      manifestListsTiles:!!window.pilotQA.manifest.available_tiles}));
     assert.equal(ui.overflow,false);assert.equal(ui.blurb,false);assert.ok(ui.compact);assert.match(ui.attribution,/OSM/);
     assert.equal(ui.manifestListsTiles,mode==='loose');
+    if(productionRoot&&mode==='archive')assert.equal(await page.evaluate(()=>window.pilotQA.manifest.archive_url),deployment.archive_url);
     const records=preview.requests.slice(startIndex),ranges=records.filter(r=>r.path.startsWith('/data/'));
     if(mode==='archive')assert.ok(ranges.length>0&&ranges.every(r=>r.status===206&&r.range));
     assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);assert.deepEqual(external,[]);
     const run={mode,viewport,initialLoadMs,stages,ui,errors,failed,completedResponses,encodedBytes,
+     productionConfiguration:!!productionRoot,liveEndpointVerified:false,
      totalRequests:records.length,totalBodyBytes:records.reduce((n,r)=>n+r.bytes,0),
      archiveRangeRequests:ranges.length,maxRangeBytes:Math.max(0,...ranges.map(r=>r.bytes)),
      archiveResponseBytes:ranges.reduce((n,r)=>n+r.bytes,0)};

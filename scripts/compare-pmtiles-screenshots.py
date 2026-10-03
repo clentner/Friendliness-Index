@@ -1,9 +1,10 @@
 """Assert pixel equality between loose PNG and PMTiles browser captures."""
 import json
+import sys
 from pathlib import Path
 from PIL import Image, ImageChops
 
-root = Path('qa-artifacts/pmtiles/browser')
+root = Path(sys.argv[1] if len(sys.argv) > 1 else 'qa-artifacts/pmtiles/browser')
 results = json.loads((root / 'results.json').read_text())
 assert len(results['runs']) == 6, 'All three viewport pairs must finish first'
 pairs = []

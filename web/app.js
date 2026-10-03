@@ -22,6 +22,27 @@ try {
   const response = await fetch('manifest.json',{cache:'no-cache'});
   if (!response.ok) throw new Error('Dataset manifest unavailable');
   const manifest = await response.json();
+  const archiveUrl = manifest.archive_url ? new URL(manifest.archive_url,location.href).href : null;
+  if (archiveUrl) {
+    if (!globalThis.pmtiles?.Protocol) throw new Error('Archive reader unavailable');
+    const protocol = new pmtiles.Protocol();
+    let transparentTile;
+    maplibregl.addProtocol('pmtiles',async (params,abortController)=>{
+      const result = await protocol.tile(params,abortController);
+      // MapLibre 5.20 leaves data:null raster tiles pending. Preserve the
+      // existing transparent fallback for absent tiles in a sparse archive.
+      if (result.data === null) {
+        transparentTile ??= fetch(new URL('transparent.png',location.href)).then(response=>{
+          if (!response.ok) throw new Error('Transparent fallback unavailable');
+          return response.arrayBuffer();
+        });
+        const data = await transparentTile;
+        abortController.signal.throwIfAborted();
+        return {...result,data:new Uint8Array(data)};
+      }
+      return result;
+    });
+  }
   const areaLabel = manifest.area_label || 'Boston';
   const loadedStatus = manifest.area_label ? `${areaLabel} · Fixed score` : 'Boston area · Fixed score';
   const tileBase = new URL(`datasets/${manifest.dataset}/tiles/`,location.href).href;
@@ -67,7 +88,9 @@ try {
   if (manifest.area_label) fitCoverage(0);
   map.addControl(new maplibregl.NavigationControl(),'top-right');
   map.on('load',()=>{
-    map.addSource('scores',{type:'raster',tiles:[new URL('.',location.href).href+manifest.tile_url],
+    map.addSource('scores',{type:'raster',...(archiveUrl
+      ? {url:'pmtiles://'+archiveUrl}
+      : {tiles:[new URL(manifest.tile_url,location.href).href]}),
       tileSize:256,minzoom:manifest.minzoom,maxzoom:manifest.maxzoom,bounds:manifest.bbox,
       attribution:'Friendliness Index · © <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors · <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>'});
     map.addLayer({id:'scores',type:'raster',source:'scores',paint:{'raster-opacity':.8,'raster-resampling':'nearest','raster-fade-duration':150}});

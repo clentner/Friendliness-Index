@@ -5,6 +5,6 @@
     "vendor": "node scripts/vendor.mjs",
     "test:browser": "node scripts/browser-qa.mjs"
   },
-  "dependencies": {"maplibre-gl": "5.20.0"},
+  "dependencies": {"maplibre-gl": "5.20.0", "pmtiles": "4.5.0"},
   "devDependencies": {"playwright": "1.58.2"}
 }

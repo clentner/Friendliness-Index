@@ -13,6 +13,7 @@ function replaceOnce(text,from,to){
 
 async function createPreview(options={}){
  const root=path.resolve(options.root||'build/massachusetts');
+ const productionRoot=options.productionRoot?path.resolve(options.productionRoot):null;
  const manifest=JSON.parse(await fsp.readFile(path.join(root,'manifest.json'),'utf8'));
  const archive=path.resolve(options.archive||`build/archives/massachusetts-${manifest.dataset}.pmtiles`);
  const archiveName=path.basename(archive),archiveSize=(await fsp.stat(archive)).size;
@@ -46,6 +47,7 @@ const status =`);
  compact.archive_url=`/data/${archiveName}`;
  const generated=new Map([['/archive/app.js',Buffer.from(app)],['/archive/index.html',Buffer.from(html)],
   ['/archive/manifest.json',Buffer.from(JSON.stringify(compact))]]);
+ if(productionRoot)generated.clear(); // Serve the exact staged production files.
  const requests=[];
  const server=http.createServer(async(req,res)=>{
   let record;
@@ -58,12 +60,13 @@ const status =`);
    if(pathname==='/loose/'||pathname==='/archive/')pathname+='index.html';
    let file,buffer=generated.get(pathname);
    if(isArchive)file=archive;
-   else if(pathname==='/archive/vendor/pmtiles.js')file=path.join(sdkRoot,'dist/pmtiles.js');
+   else if(pathname==='/archive/vendor/pmtiles.js'&&!productionRoot)file=path.join(sdkRoot,'dist/pmtiles.js');
    else{
     const match=pathname.match(/^\/(loose|archive)\/(.+)$/);
     if(!match){res.writeHead(404).end();return}
-    file=path.resolve(root,match[2]);
-    if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return}
+    const assetRoot=match[1]==='archive'&&productionRoot?productionRoot:root;
+    file=path.resolve(assetRoot,match[2]);
+    if(!file.startsWith(assetRoot+path.sep)){res.writeHead(403).end();return}
    }
    const size=buffer?buffer.length:(await fsp.stat(file)).size;
    let start=0,end=size-1,status=200;
